@@ -1,158 +1,234 @@
-// src/api/mock.js
-// Простые моки + искусственная задержка
-export const apiDelay = (ms = 200) => new Promise(res => setTimeout(res, ms))
 
-export const roles = ['admin', 'sysadmin', 'ssk', 'iko', 'foreman']
+// Unified API client (replaces mocks). We keep the filename so imports don't break.
+const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru';
 
-// ==== Справочники
-export const foremen = [
-    { id: 'f1', full_name: 'Иван Петров', phone: '+7 900 111-22-33' },
-    { id: 'f2', full_name: 'Сергей Смирнов', phone: '+7 900 222-33-44' },
-    { id: 'f3', full_name: 'Алексей Котов', phone: '+7 900 333-44-55' },
-]
-
-// ==== Объекты
-export let objects = [
-    { id:'o1', name:'ЖК «Река»', status:'active', activation_state:'ready', progress:48, address:'ул. Лесная, 12', polygonId:'c1',
-        ssk:'Анна Соколова', ssk_id:'ssk1', iko:'Илья Орлов', iko_id:'iko1', foreman:null, foreman_id:null,
-        violations_total:6, violations_open:4,
-        visits:{ ssk:3, iko:2, foreman:7 },
-        deliveries_today:2, ai_flag:'risk schedule'
-    },
-    { id:'o2', name:'Мост М7', status:'active', activation_state:'active', progress:76, address:'трасса М7, км 214', polygonId:'c2',
-        ssk:'Анна Соколова', ssk_id:'ssk1', iko:'Илья Орлов', iko_id:'iko1', foreman:'Иван Петров', foreman_id:'f1',
-        violations_total:2, violations_open:1,
-        visits:{ ssk:5, iko:3, foreman:11 },
-        deliveries_today:1, ai_flag:'ok'
-    },
-    { id:'o3', name:'БЦ «Север»', status:'paused', activation_state:'not_ready', progress:68, address:'пр. Мира, 7', polygonId:'c3',
-        ssk:'Анна Соколова', ssk_id:'ssk1', iko:'Илья Орлов', iko_id:'iko1', foreman:'Сергей Смирнов', foreman_id:'f2',
-        violations_total:0, violations_open:0,
-        visits:{ ssk:1, iko:1, foreman:3 },
-        deliveries_today:0, ai_flag:'risk quality'
-    },
-]
-
-export async function getObjects(){
-    await apiDelay();
-    return { items: objects, total: objects.length }
+function getTokens(){
+  try { return JSON.parse(localStorage.getItem('ccj_tokens')||'{}') } catch(e){ return {} }
 }
-export async function getObject(id){
-    await apiDelay();
-    return objects.find(o => o.id === id)
-}
-export async function patchObject(id, patch){
-    await apiDelay();
-    const o = objects.find(x => x.id === id)
-    if (o) Object.assign(o, patch)
-    return o
-}
-export async function getForemen(){
-    await apiDelay();
-    return { items: foremen, total: foremen.length }
+function setTokens(t){ localStorage.setItem('ccj_tokens', JSON.stringify(t||{})) }
+
+async function http(path, { method='GET', headers={}, body, retry=true } = {}){
+  const url = path.startsWith('http') ? path : `${BASE}${path}`
+  const tokens = getTokens()
+  const h = { 'Content-Type':'application/json', ...headers }
+  if (tokens.access) h['Authorization'] = `Bearer ${tokens.access}`
+  const res = await fetch(url, { method, headers:h, body })
+  if (res.status === 401 && retry && tokens.refresh){
+    // try refresh
+    const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
+    if (rr.ok){
+      const data = await rr.json()
+      setTokens({ access: data.access, refresh: data.refresh || tokens.refresh })
+      return http(path, { method, headers, body, retry:false })
+    }
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=>`HTTP ${res.status}`)
+    throw new Error(txt || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type')||''
+  return ct.includes('application/json') ? res.json() : res.text()
 }
 
-// ==== Работы / планы
-export async function createWorkPlan({ object_id, items }){
-    await apiDelay();
-    return { id: 'wp_'+object_id, object_id, items, created_at: new Date().toISOString() }
+// ===== Auth helpers (used by AuthContext) =====
+export async function apiLogin({ email, password }){
+  const data = await http('/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
+  if (data.access) setTokens({ access: data.access, refresh: data.refresh })
+  return data
+}
+export async function apiLogout(){
+  const tokens = getTokens()
+  try{ await http('/auth/logout', { method:'POST', body: JSON.stringify({ refresh: tokens.refresh||'' }) }) }catch(e){ /* ignore */ }
+  setTokens({})
+}
+export async function apiMe(){
+  return await http('/users/me')
 }
 
-// ==== Ежедневные чек-листы
-export let dailyChecklists = [
-    { id:'dc1', object_id:'o1', foreman:'Иван Петров', date:'2025-09-28', status:'submitted' },
-    { id:'dc2', object_id:'o2', foreman:'Сергей Смирнов', date:'2025-09-28', status:'submitted' },
-]
-export async function createDailyChecklist({ object_id, answers }){
-    await apiDelay();
-    const it = { id: 'dc_'+object_id, object_id, answers, status:'submitted', created_at: new Date().toISOString() }
-    dailyChecklists.unshift(it)
-    return it
+// ===== Objects =====
+export async function getObjects({ mine=true, status } = {}){
+  const qs = new URLSearchParams()
+  if (mine != null) qs.set('mine', String(mine))
+  if (status) qs.set('status', status)
+  return await http(`/objects?${qs.toString()}`)
 }
-export async function getDailyChecklists(){ await apiDelay(); return { items: dailyChecklists } }
-export async function markDailyChecklistReviewed({ id }){ await apiDelay(); const c=dailyChecklists.find(x=>x.id===id); if(c) c.status='reviewed'; return c }
-
-// ==== Файловое хранилище / Памятки
-export let files = [
-    { id:'root', name:'/', type:'folder', parent:null },
-    { id:'fdocs', name:'Документы', type:'folder', parent:'root' },
-    { id:'fmemos', name:'Памятки', type:'folder', parent:'root' },
-    { id:'spec1', name:'Смета_ЖК_Река.pdf', type:'file', parent:'fdocs', size: '1.2 MB', object_id:'o1' },
-    { id:'spec2', name:'Паспорт_материала_бетон.pdf', type:'file', parent:'fdocs', size: '820 KB', object_id:'o2' },
-    { id:'memo1', name:'Памятка по ТБ.docx', type:'file', parent:'fmemos', size: '64 KB' },
-]
-export async function getFileTree(){ await apiDelay(); return { items: files } }
-export async function getMemos(){ await apiDelay(); return { items: files.filter(f=>f.parent==='fmemos') } }
-
-// ==== Уведомления
-export let notifications = [
-    { id:'n1', to:'foreman', text:'Поставка №P-101 по объекту ЖК «Река» ожидает подтверждения', created_at: new Date(Date.now()-3600e3).toISOString() },
-    { id:'n2', to:'ssk', text:'Прораб Иван Петров отправил чек-лист за сегодня по объекту БЦ «Север»', created_at: new Date(Date.now()-7200e3).toISOString() },
-    { id:'n3', to:'iko', text:'Нарушение №V-77 ожидает подтверждения исправления', created_at: new Date(Date.now()-1800e3).toISOString() }
-]
-export async function getNotifications(role){ await apiDelay(); return { items: notifications.filter(n=>n.to===role) } }
-
-// ==== Тикеты
-export let tickets = [
-    { id:'t1', author_role:'foreman', title:'Не открывается карточка поставки', status:'open', created_at:new Date().toISOString() },
-]
-export async function getTickets(){ await apiDelay(); return { items: tickets } }
-export async function createTicket({ title, body, object_id }){ await apiDelay(); const t={ id:'t'+(tickets.length+1), title, body, object_id, status:'open', created_at:new Date().toISOString() }; tickets.unshift(t); return t }
-
-// ==== График работ
-export let schedules = [
-    { id:'s1', object_id:'o1', title:'Черновые работы', assignee:'f1', start:'2025-09-25', end:'2025-10-05' },
-    { id:'s2', object_id:'o2', title:'Арматура', assignee:'f2', start:'2025-09-27', end:'2025-10-10' },
-]
-export async function getSchedules({ object_id }={}){ await apiDelay(); return { items: object_id? schedules.filter(s=>s.object_id===object_id): schedules } }
-
-// ==== Посещения
-export let visits = [
-    { id:'v1', role:'ssk', object_id:'o1', date:'2025-09-29', status:'planned' },
-    { id:'v2', role:'iko', object_id:'o1', date:'2025-09-30', status:'planned' },
-    { id:'v3', role:'foreman', object_id:'o2', date:'2025-09-28', status:'done' },
-]
-export async function getVisits({ role, object_id }={}){
-    await apiDelay();
-    let arr = visits;
-    if (role) arr = arr.filter(v=>v.role===role);
-    if (object_id) arr = arr.filter(v=>v.object_id===object_id);
-    return { items: arr }
+export async function getObject(id){ return await http(`/objects/${id}`) }
+export async function patchObject(id, patch){ return await http(`/objects/${id}`, { method:'PATCH', body: JSON.stringify(patch) }) }
+export async function requestActivation(id){ return await http(`/objects/${id}/activation/request`, { method:'POST' }) }
+export async function completeActivation(id){ return await http(`/objects/${id}/activation/complete`, { method:'POST' }) }
+export async function suspendObject(id, payload){ return await http(`/objects/${id}/suspend`, { method:'POST', body: JSON.stringify(payload||{}) }) }
+export async function resumeObject(id){ return await http(`/objects/${id}/resume`, { method:'POST' }) }
+export async function completeObject(id){ return await http(`/objects/${id}/complete`, { method:'POST' }) }
+export async function getObjectHistory(id, { limit=50, offset=0 } = {}){
+  const qs = new URLSearchParams({ limit:String(limit), offset:String(offset) })
+  return await http(`/objects/${id}/history?${qs.toString()}`)
 }
 
-// ==== Поставки
-export let deliveries = [
-    { id:'d1', object_id:'o1', title:'Бетон М300', status:'new', photos:[], lab:false, created_at:new Date().toISOString() },
-    { id:'d2', object_id:'o2', title:'Кирпич керамический', status:'new', photos:[], lab:false, created_at:new Date().toISOString() },
-    { id:'d3', object_id:'o1', title:'Арматура A500', status:'accepted', photos:[], lab:false, created_at:new Date(Date.now()-86400e3).toISOString() },
-]
-export async function getDeliveries({ object_id }={}){ await apiDelay(); return { items: object_id? deliveries.filter(d=>d.object_id===object_id): deliveries } }
+// ===== Users =====
+export async function getForemen(){ return await http('/users?role=foreman') }
+export async function searchUsers({ role, query } = {}){
+  const qs = new URLSearchParams()
+  if (role) qs.set('role', role)
+  if (query) qs.set('query', query)
+  return await http(`/users?${qs.toString()}`)
+}
+
+// ===== Notifications =====
+export async function getNotifications(){ return await http('/notifications?mine=true') }
+export async function markNotificationRead(id){ return await http(`/notifications/${id}/read`, { method:'POST' }) }
+
+// ===== Files / Documents / Exec docs =====
+export async function getFileTree({ object_id } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  return await http(`/documents?${qs.toString()}`)
+}
+export async function getMemos(){ return await http('/memos') }
+
+// ===== Tickets =====
+export async function getTickets({ status } = {}){
+  const qs = new URLSearchParams()
+  if (status) qs.set('status', status)
+  qs.set('mine', 'true')
+  return await http(`/tickets?${qs.toString()}`)
+}
+export async function createTicket({ object_id, title, body, text }){
+  const payload = { object_id: object_id||undefined, text: text || body || title }
+  return await http('/tickets', { method:'POST', body: JSON.stringify(payload) })
+}
+export async function setTicketStatus({ id, status }){
+  return await http(`/tickets/${id}/status`, { method:'POST', body: JSON.stringify({ status }) })
+}
+
+// ===== Work plans / schedules =====
+export async function getSchedules({ object_id } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  return await http(`/work-plans?${qs.toString()}`)
+}
+
+
+// ===== Work plans =====
+export async function createWorkPlan({ object_id, doc_url, extracted_meta }){
+  return await http('/work-plans', { method:'POST', body: JSON.stringify({ object_id, doc_url, extracted_meta }) })
+}
+export async function addWorkPlanVersion({ id, doc_url }){
+  return await http(`/work-plans/${id}/versions`, { method:'POST', body: JSON.stringify({ doc_url }) })
+}
+export async function getWorkPlan(id){
+  return await http(`/work-plans/${id}`)
+}
+export async function requestWorkPlanChange({ id, proposed_doc_url, comment }){
+  return await http(`/work-plans/${id}/request-change`, { method:'POST', body: JSON.stringify({ proposed_doc_url, comment }) })
+}
+export async function approveWorkPlanChange({ id, decision, comment }){
+  return await http(`/work-plans/${id}/approve-change`, { method:'POST', body: JSON.stringify({ decision, comment }) })
+}
+
+// ===== Visits / QR / Inspections =====
+export async function getVisits({ object_id, type } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  if (type) qs.set('type', type)
+  return await http(`/visits?${qs.toString()}`)
+}
+export async function requestVisit({ object_id, planned_date }){ return await http('/visits/requests', { method:'POST', body: JSON.stringify({ object_id, planned_date }) }) }
+export async function approveVisit(id, decision='approve'){ return await http(`/visits/requests/${id}/approve`, { method:'POST', body: JSON.stringify({ decision }) }) }
+export async function createQrCode(payload){ return await http('/qr-codes', { method:'POST', body: JSON.stringify(payload) }) }
+export async function getQrCode(id){ return await http(`/qr-codes/${id}`) }
+export async function scanQrCode(id, payload){ return await http(`/qr-codes/${id}/scan`, { method:'POST', body: JSON.stringify(payload) }) }
+export async function closeQrUpload(id, payload){ return await http(`/qr-codes/${id}/upload-complete`, { method:'POST', body: JSON.stringify(payload) }) }
+
+// ===== Deliveries / Invoices / Labs =====
+export async function getDeliveries({ object_id } = {}){
+  try{
+    const qs = new URLSearchParams()
+    if (object_id) qs.set('object_id', object_id)
+    return await http(`/deliveries?${qs.toString()}`)
+  }catch(e){
+    return await http('/deliveries/list')
+  }
+}
+export async function markDeliveryReceived({ id, object_id, notes }){
+  return await http(`/deliveries/${id}`, { method:'POST', body: JSON.stringify({ object_id, notes }) })
+}
+export async function setDeliveryStatus({ id, status, comment }){
+  return await http(`/deliveries/${id}/status`, { method:'POST', body: JSON.stringify({ status, comment }) })
+}
+export async function uploadInvoice({ delivery_id, object_id, pdf_url, data }){
+  return await http('/invoices', { method:'POST', body: JSON.stringify({ delivery_id, object_id, pdf_url, data }) })
+}
+export async function parseTTN({ invoice_id, image_urls }){
+  return await http(`/invoices/${invoice_id}/parse-ttn`, { method:'POST', body: JSON.stringify({ image_urls }) })
+}
+export async function createLabOrder({ delivery_id, items, lab_id }){
+  return await http('/labs/orders', { method:'POST', body: JSON.stringify({ delivery_id, items, lab_id }) })
+}
+export async function attachLabResults({ order_id, pdf_url, key_metrics }){
+  return await http('/labs/results', { method:'POST', body: JSON.stringify({ order_id, pdf_url, key_metrics }) })
+}
+
+// ===== Violations / Prescriptions =====
+export async function getViolations(params = {}){
+  const qs = new URLSearchParams()
+  for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
+  return await http(`/violations?${qs.toString()}`)
+}
+export async function getViolation(id){
+  try{ return await http(`/violations/${id}`) }catch(e){
+    const all = await getViolations({})
+    return (all.items||[]).find(x => String(x.id) === String(id))
+  }
+}
+export async function createViolation(payload){ return await http('/violations', { method:'POST', body: JSON.stringify(payload) }) }
+export async function submitViolationReport({ id, text, photos_folder_url }){
+  return await http(`/violations/${id}/fix-submit`, { method:'POST', body: JSON.stringify({ text, photos_folder_url }) })
+}
+export async function reviewViolation({ id, decision, comment, need_personal_recheck }){
+  return await http(`/violations/${id}/review`, { method:'POST', body: JSON.stringify({ decision, comment, need_personal_recheck }) })
+}
+export async function confirmViolation({ id }){ return reviewViolation({ id, decision:'approve' }) }
+export async function declineViolation({ id }){ return reviewViolation({ id, decision:'reject' }) }
+
+// ===== Daily checklists =====
+export async function createDailyChecklist(payload){ return await http('/daily-checklists', { method:'POST', body: JSON.stringify(payload) }) }
+export async function getDailyChecklists(params={}){
+  const qs = new URLSearchParams()
+  for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
+  return await http(`/daily-checklists?${qs.toString()}`)
+}
+export async function reviewDailyChecklist({ id, decision, comment, photos }){
+  return await http(`/daily-checklists/${id}/review`, { method:'POST', body: JSON.stringify({ decision, comment, photos }) })
+}
+export async function markDailyChecklistReviewed({ id }){ return reviewDailyChecklist({ id, decision:'approve' }) }
+
+// ===== AI =====
+export async function getAIObjectReports({ object_id }){
+  return await http('/ai/structured', { method:'POST', body: JSON.stringify({ prompt:`Сводка по объекту ${object_id}`, schema_json:{ type:'object', properties:{ summary:{ type:'string' } }, required:['summary'] } }) })
+}
+export async function aiChat({ object_id, message }){
+  const r = await http('/ai/free', { method:'POST', body: JSON.stringify({ prompt:`[object=${object_id||''}] ${message}` }) })
+  return { reply: r.text || '' }
+}
+
+// ===== Misc =====
+export function getEnv(){ 
+  return { api_url: BASE, build_mode: import.meta.env.MODE }
+}
+
+
+// Compatibility helpers (used by old UI components)
+export async function acceptDelivery({ id, comment }){
+  return await setDeliveryStatus({ id, status: 'accepted', comment })
+}
+export async function sendDeliveryToLab({ id, comment }){
+  return await setDeliveryStatus({ id, status: 'sent_to_lab', comment })
+}
+
+
+// Upload delivery photo (compat):
+// NOTE: backend upload endpoint is not defined; this client helper only returns a stub object
+// so the UI can proceed. Replace later with real upload (signed URL -> PUT -> confirm).
 export async function uploadDeliveryPhoto({ delivery_id, file }){
-    await apiDelay();
-    const d = deliveries.find(x=>x.id===delivery_id);
-    if (d){ d.photos.push({ id:'p'+(d.photos.length+1), name:file?.name||'mock.jpg' }); }
-    return d;
-}
-export async function acceptDelivery({ id }){ await apiDelay(); const d=deliveries.find(x=>x.id===id); if(d) d.status='accepted'; return d }
-export async function sendDeliveryToLab({ id }){ await apiDelay(); const d=deliveries.find(x=>x.id===id); if(d) d.lab=true; return d }
-
-// ==== Нарушения
-export let violations = [
-    { id:'vi1', object_id:'o1', status:'open', title:'Отсутствуют ограждения', description:'На участке 1 не установлены ограждения', photos:[], created_at:new Date().toISOString(), reports:[] },
-    { id:'vi2', object_id:'o2', status:'in_review', title:'Неправильное хранение материалов', description:'Паллеты размещены в проходе', photos:[], created_at:new Date(Date.now()-86400e3).toISOString(), reports:[] },
-]
-export async function getViolations({ object_id }={}){ await apiDelay(); return { items: object_id? violations.filter(v=>v.object_id===object_id): violations } }
-export async function getViolation(id){ await apiDelay(); return violations.find(v=>v.id===id) }
-export async function createViolation({ object_id, title, description, photos=[] }){ await apiDelay(); const v={ id:'vi'+(violations.length+1), object_id, status:'open', title, description, photos, created_at:new Date().toISOString(), reports:[] }; violations.unshift(v); return v }
-export async function submitViolationReport({ id, text, photos=[] }){ await apiDelay(); const v=violations.find(x=>x.id===id); if(v){ v.reports.push({ text, photos, date:new Date().toISOString() }); v.status='in_review' } return v }
-export async function confirmViolation({ id }){ await apiDelay(); const v=violations.find(x=>x.id===id); if(v) v.status='closed'; return v }
-export async function declineViolation({ id }){ await apiDelay(); const v=violations.find(x=>x.id===id); if(v) v.status='open'; return v }
-
-// ==== AI
-export async function getAIObjectReports({ object_id }){ await apiDelay(); return { items: [{ id:'ai1', object_id, summary:'Риск задержки поставки бетона. Рекомендация: сместить бетонные работы на 1 день.' }] } }
-export async function aiChat({ object_id, message }){ await apiDelay(); return { reply: `AI по объекту ${object_id||'—'}: принял ваше сообщение "${message}".` } }
-
-// ==== ENV
-export function getEnv(){
-    return { api_url: import.meta.env.VITE_API_URL || 'MOCK', build_mode: import.meta.env.MODE }
+  return { id: `p_${Date.now()}`, name: (file && file.name) || 'photo.jpg', delivery_id }
 }
