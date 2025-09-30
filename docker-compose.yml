@@ -1,0 +1,11 @@
+services:
+  building-front-web:
+    container_name: building-front-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "on-failure:3"
+    ports:
+      - "5173:80"
+    env_file:
+      - .env
