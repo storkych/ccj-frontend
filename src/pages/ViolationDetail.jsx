@@ -25,7 +25,7 @@ export default function ViolationDetail(){
   async function decline(){ await declineViolation({ id }); load() }
 
   if(!v) return null
-  const frozen = false // demo: статус объекта «заморожен» — подтянуть с бэка позже
+  const frozen = false
 
   return (
     <div className="page">

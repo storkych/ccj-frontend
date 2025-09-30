@@ -22,7 +22,7 @@ export default function Deliveries(){
   const { user } = useAuth()
   const [objectId, setObjectId] = useState('')
   const [items, setItems] = useState([])
-  async function load(){ const r = await getDeliveries({ object_id: objectId||undefined }); setItems(r.items) }
+  async function load(){ const r = await getDeliveries({ object_id: objectId||undefined }); setItems(r.items||[]) }
   useEffect(()=>{ load() }, [objectId])
 
   async function onUpload(d, file){

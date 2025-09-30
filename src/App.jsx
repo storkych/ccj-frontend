@@ -82,7 +82,11 @@ function Layout({ children }){
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m21 21-4.3-4.3" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"/><circle cx="11" cy="11" r="7" stroke="#6b7280" strokeWidth="2" fill="none"/></svg>
             <input placeholder="Поиск по объектам, актам, замечаниям…" />
           </div>
-          {user ? <button className="btn ghost" onClick={logout}>Выйти</button> : null}
+          {user ? (
+            <div className="row" style={{gap:8, alignItems:'center'}}>
+              <span className={`pill role-${user.role}`}>{user.role?.toUpperCase()}</span>
+            </div>
+          ) : null}
         </header>
         <main>{children}</main>
       </div>
