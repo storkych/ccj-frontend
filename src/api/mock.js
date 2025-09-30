@@ -112,6 +112,12 @@ export async function getSchedules({ object_id } = {}){
   return await http(`/work-plans/list?${qs.toString()}`)
 }
 
+export async function getWorkPlans({ object_id } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  return await http(`/work-plans/list?${qs.toString()}`)
+}
+
 
 // ===== Work plans =====
 export async function createWorkPlan({ object_id, items, title }){
