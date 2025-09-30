@@ -7,7 +7,20 @@ function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
 }
 
+function getStatusInfo(status) {
+  const statusMap = {
+    'draft': { label: 'Черновик', color: '#ea580c', bgColor: '#fff7ed' },
+    'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
+    'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
+    'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
+    'completed': { label: 'Завершён', color: '#1d4ed8', bgColor: '#eff6ff' }
+  }
+  return statusMap[status] || { label: status || '—', color: '#6b7280', bgColor: '#f9fafb' }
+}
+
 function ObjectCard({ obj }){
+  const statusInfo = getStatusInfo(obj.status)
+  
   return (
     <article className="card">
       <div className="row" style={{justifyContent:'space-between', marginBottom:12, alignItems:'center'}}>
@@ -17,7 +30,17 @@ function ObjectCard({ obj }){
             📍 {obj.address}
           </div>
         </div>
-        <span className={'status ' + (obj.status==='active'?'green':'red')}>{obj.status || '—'}</span>
+        <div style={{
+          padding:'4px 8px', 
+          backgroundColor: statusInfo.bgColor, 
+          color: statusInfo.color, 
+          borderRadius:'6px', 
+          fontSize:'12px', 
+          fontWeight:'600',
+          border: `1px solid ${statusInfo.color}30`
+        }}>
+          {statusInfo.label}
+        </div>
       </div>
       <div className="row" style={{marginBottom:8}}>
         <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{(obj.progress ?? 0)}%</span>
@@ -89,8 +112,20 @@ export default function Objects(){
   const filtered = useMemo(()=>{
     if(user?.role!=='ssk') return mine
     if(sskFilter==='all') return mine
-    return mine.filter(o => o.activation_state === sskFilter)
+    return mine.filter(o => o.status === sskFilter)
   }, [mine, user, sskFilter])
+
+  const filteredSskObjects = useMemo(()=>{
+    if(user?.role !== 'ssk') return { assigned: [], available: [] }
+    if(sskFilter === 'all') return sskObjects
+    
+    const filterByActivation = (objects) => objects.filter(o => o.status === sskFilter)
+    
+    return {
+      assigned: filterByActivation(sskObjects.assigned),
+      available: filterByActivation(sskObjects.available)
+    }
+  }, [sskObjects, sskFilter, user])
 
   return (
     <div className="page">
@@ -102,22 +137,24 @@ export default function Objects(){
               className={activeTab === 'assigned' ? 'btn' : 'btn ghost'} 
               onClick={()=>setActiveTab('assigned')}
             >
-              Мои объекты ({sskObjects.assigned.length})
+              Мои объекты ({filteredSskObjects.assigned.length})
             </button>
             <button 
               className={activeTab === 'available' ? 'btn' : 'btn ghost'} 
               onClick={()=>setActiveTab('available')}
             >
-              Доступные ({sskObjects.available.length})
+              Доступные ({filteredSskObjects.available.length})
             </button>
           </div>
           <div className="row" style={{gap:8}}>
             <label className="muted" style={{width:160}}>Фильтр активации</label>
             <select className="input" value={sskFilter} onChange={e=>setSskFilter(e.target.value)}>
               <option value="all">Все</option>
-              <option value="ready">Готов к активации</option>
-              <option value="active">Активирован</option>
-              <option value="not_ready">Не готов к активации</option>
+              <option value="draft">Черновик</option>
+              <option value="activation_pending">Ожидает активации</option>
+              <option value="active">Активен</option>
+              <option value="suspended">Приостановлен</option>
+              <option value="completed">Завершён</option>
             </select>
           </div>
         </div>
@@ -126,13 +163,17 @@ export default function Objects(){
         <>
           {user?.role === 'ssk' ? (
             <div className="object-list" style={{marginTop:20}}>
-              {activeTab === 'assigned' && sskObjects.assigned.map(o => <ObjectCard key={o.id} obj={o} />)}
-              {activeTab === 'available' && sskObjects.available.map(o => <ObjectCard key={o.id} obj={o} />)}
-              {activeTab === 'assigned' && sskObjects.assigned.length === 0 && (
-                <div className="muted" style={{textAlign:'center', padding:'40px'}}>У вас пока нет назначенных объектов</div>
+              {activeTab === 'assigned' && filteredSskObjects.assigned.map(o => <ObjectCard key={o.id} obj={o} />)}
+              {activeTab === 'available' && filteredSskObjects.available.map(o => <ObjectCard key={o.id} obj={o} />)}
+              {activeTab === 'assigned' && filteredSskObjects.assigned.length === 0 && (
+                <div className="muted" style={{textAlign:'center', padding:'40px'}}>
+                  {sskFilter === 'all' ? 'У вас пока нет назначенных объектов' : 'Нет объектов с выбранным статусом активации'}
+                </div>
               )}
-              {activeTab === 'available' && sskObjects.available.length === 0 && (
-                <div className="muted" style={{textAlign:'center', padding:'40px'}}>Нет доступных объектов для назначения</div>
+              {activeTab === 'available' && filteredSskObjects.available.length === 0 && (
+                <div className="muted" style={{textAlign:'center', padding:'40px'}}>
+                  {sskFilter === 'all' ? 'Нет доступных объектов для назначения' : 'Нет доступных объектов с выбранным статусом активации'}
+                </div>
               )}
             </div>
           ) : (
