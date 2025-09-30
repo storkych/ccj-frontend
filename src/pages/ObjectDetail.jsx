@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getObject, getForemen, patchObject, requestActivation } from '../api/mock.js'
+import { useAuth } from '../auth/AuthContext.jsx'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
@@ -19,6 +20,7 @@ function Modal({ open, onClose, children }){
 
 export default function ObjectDetail(){
   const { id } = useParams()
+  const { user } = useAuth()
   const [obj, setObj] = useState(null)
   const [loading, setLoading] = useState(true)
   const [assignOpen, setAssignOpen] = useState(false)
@@ -86,14 +88,24 @@ export default function ObjectDetail(){
         </div>
       </section>
 
-      <section className="card">
-        <h3 style={{marginTop:0}}>Действия ССК</h3>
-        <div className="row" style={{gap:8}}>
-          {!obj.ssk && <button className="btn" onClick={async()=>{ const u = await patchObject(obj.id, { ssk_id: 'me' }); setObj(u) }}>Стать ответственным (ССК)</button>}
-          <button className="btn" onClick={openAssign}>Назначить прораба</button>
-          <button className="btn ghost" onClick={()=>location.assign('/work-plans/new')}>Добавить график работ</button>
-        </div>
-      </section>
+      {user?.role === 'ssk' && (
+        <section className="card">
+          <h3 style={{marginTop:0}}>Действия ССК</h3>
+          <div className="row" style={{gap:8}}>
+            {!obj.ssk && <button className="btn" onClick={async()=>{ 
+              try{
+                const u = await patchObject(obj.id, { ssk_id: user.id }); 
+                setObj(u);
+                alert('Вы стали ответственным за объект')
+              }catch(e){
+                alert('Ошибка: ' + (e?.message || ''))
+              }
+            }}>Стать ответственным (ССК)</button>}
+            <button className="btn" onClick={openAssign}>Назначить прораба</button>
+            <button className="btn ghost" onClick={()=>location.assign('/work-plans/new')}>Добавить график работ</button>
+          </div>
+        </section>
+      )}
 
       <Modal open={assignOpen} onClose={()=>setAssignOpen(false)}>
         <h3 style={{marginTop:0}}>Назначить прораба</h3>
