@@ -27,7 +27,7 @@ export default function ObjectDetail(){
   const [saving, setSaving] = useState(false)
 
   useEffect(()=>{
-    getObject(id).then(setObj).finally(()=>setLoading(false))
+    getObject(id).then(o=>{ console.log('[ui object-detail] loaded', o); setObj(o) }).catch(e=>{ console.warn('[ui object-detail] error', e); setObj(null) }).finally(()=>setLoading(false))
   }, [id])
 
   const openAssign = async () => {
@@ -39,7 +39,7 @@ export default function ObjectDetail(){
   const assign = async () => {
     if(!selected) return
     setSaving(true)
-    const updated = await patchObject(obj.id, { foreman: selected.full_name })
+    const updated = await patchObject(obj.id, { foreman_id: selected.id })
     setObj(updated)
     setSaving(false)
     setAssignOpen(false)
@@ -55,25 +55,25 @@ export default function ObjectDetail(){
         <div className="row" style={{justifyContent:'space-between'}}>
           <div className="row" style={{gap:16}}>
             <span className="pill">Адрес: {obj.address}</span>
-            <span className="pill">ИКО: {obj.iko}</span>
-            <span className="pill">ССК: {obj.ssk}</span>
-            <span className="pill">Прораб: {obj.foreman || '—'}</span>
+            <span className="pill">ИКО: {obj.iko?.full_name || obj.iko?.email || '—'}</span>
+            <span className="pill">ССК: {obj.ssk?.full_name || obj.ssk?.email || '—'}</span>
+            <span className="pill">Прораб: {obj.foreman?.full_name || obj.foreman?.email || '—'}</span>
           </div>
           {!obj.foreman && (
             <button className="btn" onClick={openAssign}>Назначить прораба</button>
           )}
         </div>
-        <div style={{marginTop:12}}><Progress value={obj.progress} /></div>
+        <div style={{marginTop:12}}><Progress value={obj.progress ?? 0} /></div>
         <div className="row" style={{gap:8, marginTop:8}}>
-          <span className={'status '+(obj.violations_open>0?'red':'green')}>
-            Нарушения: {obj.violations_open} активных из {obj.violations_total}
+          <span className={'status '+((obj.violations_open||0)>0?'red':'green')}>
+            Нарушения: {obj.violations_open ?? 0} активных из {obj.violations_total ?? 0}
           </span>
-          <span className="pill">Посещения ССК/ИКО/прораб: {obj.visits.ssk}/{obj.visits.iko}/{obj.visits.foreman}</span>
-          <span className="pill">Поставки сегодня: {obj.deliveries_today}</span>
+          {obj.visits && <span className="pill">Посещения ССК/ИКО/прораб: {obj.visits?.ssk ?? 0}/{obj.visits?.iko ?? 0}/{obj.visits?.foreman ?? 0}</span>}
+          {obj.deliveries_today!=null && <span className="pill">Поставки сегодня: {obj.deliveries_today}</span>}
         </div>
         <div className="row" style={{gap:8, marginTop:8}}>
-          <span className="pill">Полигон: {obj.polygonId}</span>
-          <span className="pill">AI: {obj.ai_flag}</span>
+          {obj.polygonId!=null && <span className="pill">Полигон: {obj.polygonId}</span>}
+          {obj.ai_flag!=null && <span className="pill">AI: {obj.ai_flag}</span>}
         </div>
       </section>
 

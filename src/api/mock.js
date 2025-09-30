@@ -12,6 +12,8 @@ async function http(path, { method='GET', headers={}, body, retry=true } = {}){
   const tokens = getTokens()
   const h = { 'Content-Type':'application/json', ...headers }
   if (tokens.access) h['Authorization'] = `Bearer ${tokens.access}`
+  const ts = new Date().toISOString()
+  try{ console.log(`[api →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[api →]`, ts, method, url) }
   const res = await fetch(url, { method, headers:h, body })
   if (res.status === 401 && retry && tokens.refresh){
     // try refresh
@@ -19,15 +21,19 @@ async function http(path, { method='GET', headers={}, body, retry=true } = {}){
     if (rr.ok){
       const data = await rr.json()
       setTokens({ access: data.access, refresh: data.refresh || tokens.refresh })
+      console.log('[api ◇] token refreshed')
       return http(path, { method, headers, body, retry:false })
     }
   }
   if (!res.ok){
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
+    console.warn(`[api ←]`, method, url, res.status, txt)
     throw new Error(txt || `HTTP ${res.status}`)
   }
   const ct = res.headers.get('content-type')||''
-  return ct.includes('application/json') ? res.json() : res.text()
+  const out = ct.includes('application/json') ? await res.json() : await res.text()
+  try{ console.log(`[api ←]`, method, url, res.status, out) }catch{ console.log(`[api ←]`, method, url, res.status) }
+  return out
 }
 
 // ===== Auth helpers (used by AuthContext) =====
@@ -55,7 +61,6 @@ export async function getObjects({ mine=true, status } = {}){
 export async function getObject(id){ return await http(`/objects/${id}`) }
 export async function patchObject(id, patch){ return await http(`/objects/${id}`, { method:'PATCH', body: JSON.stringify(patch) }) }
 export async function requestActivation(id){ return await http(`/objects/${id}/activation/request`, { method:'POST' }) }
-export async function completeActivation(id){ return await http(`/objects/${id}/activation/complete`, { method:'POST' }) }
 export async function suspendObject(id, payload){ return await http(`/objects/${id}/suspend`, { method:'POST', body: JSON.stringify(payload||{}) }) }
 export async function resumeObject(id){ return await http(`/objects/${id}/resume`, { method:'POST' }) }
 export async function completeObject(id){ return await http(`/objects/${id}/complete`, { method:'POST' }) }
@@ -65,7 +70,7 @@ export async function getObjectHistory(id, { limit=50, offset=0 } = {}){
 }
 
 // ===== Users =====
-export async function getForemen(){ return await http('/users?role=foreman') }
+export async function getForemen(){ return await http('/foremen') }
 export async function searchUsers({ role, query } = {}){
   const qs = new URLSearchParams()
   if (role) qs.set('role', role)
@@ -104,7 +109,7 @@ export async function setTicketStatus({ id, status }){
 export async function getSchedules({ object_id } = {}){
   const qs = new URLSearchParams()
   if (object_id) qs.set('object_id', object_id)
-  return await http(`/work-plans?${qs.toString()}`)
+  return await http(`/work-plans/list?${qs.toString()}`)
 }
 
 
@@ -125,29 +130,27 @@ export async function approveWorkPlanChange({ id, decision, comment }){
   return await http(`/work-plans/${id}/approve-change`, { method:'POST', body: JSON.stringify({ decision, comment }) })
 }
 
-// ===== Visits / QR / Inspections =====
-export async function getVisits({ object_id, type } = {}){
+// ===== Visits & QR =====
+export async function getVisitRequests(params = {}){
   const qs = new URLSearchParams()
-  if (object_id) qs.set('object_id', object_id)
-  if (type) qs.set('type', type)
-  return await http(`/visits?${qs.toString()}`)
+  for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
+  return await http(`/visit-requests?${qs.toString()}`)
 }
-export async function requestVisit({ object_id, planned_date }){ return await http('/visits/requests', { method:'POST', body: JSON.stringify({ object_id, planned_date }) }) }
-export async function approveVisit(id, decision='approve'){ return await http(`/visits/requests/${id}/approve`, { method:'POST', body: JSON.stringify({ decision }) }) }
+export async function createVisitRequest({ object, planned_at }){
+  return await http('/visit-requests', { method:'POST', body: JSON.stringify({ object, planned_at }) })
+}
 export async function createQrCode(payload){ return await http('/qr-codes', { method:'POST', body: JSON.stringify(payload) }) }
 export async function getQrCode(id){ return await http(`/qr-codes/${id}`) }
 export async function scanQrCode(id, payload){ return await http(`/qr-codes/${id}/scan`, { method:'POST', body: JSON.stringify(payload) }) }
 export async function closeQrUpload(id, payload){ return await http(`/qr-codes/${id}/upload-complete`, { method:'POST', body: JSON.stringify(payload) }) }
 
 // ===== Deliveries / Invoices / Labs =====
-export async function getDeliveries({ object_id } = {}){
-  try{
-    const qs = new URLSearchParams()
-    if (object_id) qs.set('object_id', object_id)
-    return await http(`/deliveries?${qs.toString()}`)
-  }catch(e){
-    return await http('/deliveries/list')
-  }
+export async function getDeliveries({ object_id, limit, offset } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  if (limit != null) qs.set('limit', String(limit))
+  if (offset != null) qs.set('offset', String(offset))
+  return await http(`/deliveries/list?${qs.toString()}`)
 }
 export async function markDeliveryReceived({ id, object_id, notes }){
   return await http(`/deliveries/${id}`, { method:'POST', body: JSON.stringify({ object_id, notes }) })
@@ -172,20 +175,20 @@ export async function attachLabResults({ order_id, pdf_url, key_metrics }){
 export async function getViolations(params = {}){
   const qs = new URLSearchParams()
   for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
+  // alias in backend to prescriptions list
   return await http(`/violations?${qs.toString()}`)
 }
 export async function getViolation(id){
-  try{ return await http(`/violations/${id}`) }catch(e){
-    const all = await getViolations({})
-    return (all.items||[]).find(x => String(x.id) === String(id))
-  }
+  return await http(`/prescriptions/${id}`)
 }
-export async function createViolation(payload){ return await http('/violations', { method:'POST', body: JSON.stringify(payload) }) }
-export async function submitViolationReport({ id, text, photos_folder_url }){
-  return await http(`/violations/${id}/fix-submit`, { method:'POST', body: JSON.stringify({ text, photos_folder_url }) })
+export async function createViolation(payload){ return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) }) }
+export async function submitViolationReport({ id, text, photos_folder_url, attachments }){
+  const body = { comment: text, attachments: attachments || (photos_folder_url ? [photos_folder_url] : []) }
+  return await http(`/prescriptions/${id}/fix`, { method:'POST', body: JSON.stringify(body) })
 }
-export async function reviewViolation({ id, decision, comment, need_personal_recheck }){
-  return await http(`/violations/${id}/review`, { method:'POST', body: JSON.stringify({ decision, comment, need_personal_recheck }) })
+export async function reviewViolation({ id, decision, comment }){
+  const accepted = decision === 'approve' || decision === true
+  return await http(`/prescriptions/${id}/verify`, { method:'POST', body: JSON.stringify({ accepted, comment }) })
 }
 export async function confirmViolation({ id }){ return reviewViolation({ id, decision:'approve' }) }
 export async function declineViolation({ id }){ return reviewViolation({ id, decision:'reject' }) }

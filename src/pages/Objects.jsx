@@ -14,15 +14,19 @@ export default function Objects(){
   const [sskFilter, setSskFilter] = useState('all') // all|ready|active|not_ready
 
   useEffect(()=>{
-    getObjects().then(r => { setData(r.items); setLoading(false) })
+    getObjects()
+      .then(r => { console.log('[ui objects] response', r); setData(r.items||[]); })
+      .catch(e => { console.warn('[ui objects] error', e); setData([]) })
+      .finally(()=> setLoading(false))
   }, [])
 
   const mine = useMemo(()=>{
     if(!user) return []
+    // сервер уже вернул mine=true; оставим безопасную фильтрацию по вложенным объектам
     return data.filter(o => {
-      if(user.role==='ssk') return o.ssk_id === user.id
-      if(user.role==='iko') return o.iko_id === user.id
-      if(user.role==='foreman') return o.foreman_id === user.id
+      if(user.role==='ssk') return (o.ssk && (o.ssk.id === user.id)) || true
+      if(user.role==='iko') return (o.iko && (o.iko.id === user.id)) || true
+      if(user.role==='foreman') return (o.foreman && (o.foreman.id === user.id)) || true
       return true
     })
   }, [data, user])
@@ -52,21 +56,21 @@ export default function Objects(){
             <article key={o.id} className="card">
               <div className="row" style={{justifyContent:'space-between'}}>
                 <h3 style={{margin:0}}>{o.name}</h3>
-                <span className={'status ' + (o.status==='active'?'green':'red')}>{o.status}</span>
+                <span className={'status ' + (o.status==='active'?'green':'red')}>{o.status || '—'}</span>
               </div>
               <div className="row">
-                <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{o.progress}%</span>
+                <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{(o.progress ?? 0)}%</span>
               </div>
-              <Progress value={o.progress} />
+              <Progress value={o.progress ?? 0} />
               <div className="row" style={{gap:10}}>
-                <span className="pill">ССК: {o.ssk}</span>
-                <span className="pill">ИКО: {o.iko}</span>
-                <span className="pill">Прораб: {o.foreman || '—'}</span>
+                <span className="pill">ССК: {o.ssk?.full_name || o.ssk?.email || '—'}</span>
+                <span className="pill">ИКО: {o.iko?.full_name || o.iko?.email || '—'}</span>
+                <span className="pill">Прораб: {o.foreman?.full_name || o.foreman?.email || '—'}</span>
               </div>
               <div className="row">
                 <span className="pill">адрес: {o.address}</span>
-                <span className="pill">поставки сегодня: {o.deliveries_today}</span>
-                <span className="pill">посещения (ССК/ИКО/прораб): {o.visits.ssk}/{o.visits.iko}/{o.visits.foreman}</span>
+                {o.deliveries_today!=null && <span className="pill">поставки сегодня: {o.deliveries_today}</span>}
+                {o.visits && <span className="pill">посещения (ССК/ИКО/прораб): {o.visits?.ssk ?? 0}/{o.visits?.iko ?? 0}/{o.visits?.foreman ?? 0}</span>}
               </div>
               <div className="row" style={{marginTop:10, justifyContent:'flex-end'}}>
                 <Link className="link" to={`/objects/${o.id}`}>Открыть карточку →</Link>
