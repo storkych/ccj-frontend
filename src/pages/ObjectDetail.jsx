@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject } from '../api/mock.js'
+import { getObject, getForemen, patchObject, requestActivation } from '../api/mock.js'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
@@ -83,6 +83,15 @@ export default function ObjectDetail(){
           <span className="pill">акты: 12</span>
           <span className="pill">чертежи: 5</span>
           <span className="pill">сертификаты: 9</span>
+        </div>
+      </section>
+
+      <section className="card">
+        <h3 style={{marginTop:0}}>Действия ССК</h3>
+        <div className="row" style={{gap:8}}>
+          {!obj.ssk && <button className="btn" onClick={async()=>{ const u = await patchObject(obj.id, { ssk_id: 'me' }); setObj(u) }}>Стать ответственным (ССК)</button>}
+          <button className="btn" onClick={openAssign}>Назначить прораба</button>
+          <button className="btn ghost" onClick={()=>location.assign('/work-plans/new')}>Добавить график работ</button>
         </div>
       </section>
 

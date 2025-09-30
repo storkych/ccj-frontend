@@ -14,11 +14,12 @@ export default function Objects(){
   const [sskFilter, setSskFilter] = useState('all') // all|ready|active|not_ready
 
   useEffect(()=>{
-    getObjects()
+    const mineParam = user?.role === 'ssk' ? undefined : true
+    getObjects({ mine: mineParam })
       .then(r => { console.log('[ui objects] response', r); setData(r.items||[]); })
       .catch(e => { console.warn('[ui objects] error', e); setData([]) })
       .finally(()=> setLoading(false))
-  }, [])
+  }, [user])
 
   const mine = useMemo(()=>{
     if(!user) return []

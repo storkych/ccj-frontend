@@ -52,7 +52,7 @@ export async function apiMe(){
 }
 
 // ===== Objects =====
-export async function getObjects({ mine=true, status } = {}){
+export async function getObjects({ mine, status } = {}){
   const qs = new URLSearchParams()
   if (mine != null) qs.set('mine', String(mine))
   if (status) qs.set('status', status)
@@ -114,8 +114,10 @@ export async function getSchedules({ object_id } = {}){
 
 
 // ===== Work plans =====
-export async function createWorkPlan({ object_id, doc_url, extracted_meta }){
-  return await http('/work-plans', { method:'POST', body: JSON.stringify({ object_id, doc_url, extracted_meta }) })
+export async function createWorkPlan({ object_id, items, title }){
+  const payload = { object_id, items }
+  if (title) payload.title = title
+  return await http('/work-plans', { method:'POST', body: JSON.stringify(payload) })
 }
 export async function addWorkPlanVersion({ id, doc_url }){
   return await http(`/work-plans/${id}/versions`, { method:'POST', body: JSON.stringify({ doc_url }) })
