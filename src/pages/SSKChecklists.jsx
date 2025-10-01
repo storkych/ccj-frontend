@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react'
-import { getDailyChecklists, markDailyChecklistReviewed } from '../api/mock.js'
+import { getDailyChecklists, markDailyChecklistReviewed } from '../api/api.js'
 
 export default function SSKChecklists(){
   const [items, setItems] = useState([])

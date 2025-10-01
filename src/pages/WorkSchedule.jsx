@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getSchedules, getObjects, getWorkPlan, updateWorkItemStatus } from '../api/mock.js'
+import { getSchedules, getObjects, getWorkPlan, updateWorkItemStatus } from '../api/api.js'
 
 export default function WorkSchedule(){
   const { user } = useAuth()

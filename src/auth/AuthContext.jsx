@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
 
     // Логин через реальный бэк: /auth/login (+ /users/me)
     const login = async (email, password) => {
-        const api = await import('../api/mock.js') // у нас тут теперь реальный API-клиент
+        const api = await import('../api/api.js') // у нас тут теперь реальный API-клиент
         const loginRes = await api.apiLogin({ email, password })
         let profile = loginRes && loginRes.user
         if (!profile) {
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
 
     // Выход: /auth/logout + чистка локального состояния
     const logout = () => {
-        import('../api/mock.js').then(m => m.apiLogout()).catch(() => {})
+        import('../api/api.js').then(m => m.apiLogout()).catch(() => {})
         localStorage.removeItem('ccj_user')
         setUser(null)
     }

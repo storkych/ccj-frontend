@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react'
-import { aiChat } from '../api/mock.js'
+import { aiChat } from '../api/api.js'
 
 export default function AIChat(){
   const [objectId, setObjectId] = useState('')

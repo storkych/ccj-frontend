@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getViolations } from '../api/mock.js'
+import { getViolations } from '../api/api.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 
 export default function Violations(){

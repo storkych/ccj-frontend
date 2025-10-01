@@ -104,3 +104,17 @@ input[type="text"]:focus, input[type="url"]:focus, textarea:focus {
 .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center}
 .modal{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; width:min(520px, 92vw)}
 .link{color:#93c5fd; text-decoration:none}
+
+.profile-link:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--brand) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.profile-link.logout:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--red) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}

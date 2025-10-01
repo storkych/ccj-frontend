@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react'
-import { getMemos } from '../api/mock.js'
+import { getMemos } from '../api/api.js'
 
 export default function Memos(){
   const [items, setItems] = useState([])

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { acceptDelivery, getDeliveries, sendDeliveryToLab, uploadDeliveryPhoto } from '../api/mock.js'
+import { acceptDelivery, getDeliveries, sendDeliveryToLab, uploadDeliveryPhoto } from '../api/api.js'
 
 function Controls({ role, d, onChanged }){
   async function toLab(){ await sendDeliveryToLab({ id:d.id }); onChanged() }

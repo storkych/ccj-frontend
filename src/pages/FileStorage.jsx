@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react'
-import { getFileTree } from '../api/mock.js'
+import { getFileTree } from '../api/api.js'
 
 export default function FileStorage(){
   const [items, setItems] = useState([])

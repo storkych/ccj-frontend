@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getNotifications, markNotificationRead } from '../api/mock.js'
+import { getNotifications, markNotificationRead } from '../api/api.js'
 
 export default function Notifications(){
   const { user } = useAuth()

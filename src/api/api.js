@@ -1,5 +1,4 @@
 
-// Unified API client (replaces mocks). We keep the filename so imports don't break.
 const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru';
 
 function getTokens(){
@@ -16,7 +15,6 @@ async function http(path, { method='GET', headers={}, body, retry=true } = {}){
   try{ console.log(`[api →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[api →]`, ts, method, url) }
   const res = await fetch(url, { method, headers:h, body })
   if (res.status === 401 && retry && tokens.refresh){
-    // try refresh
     const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
     if (rr.ok){
       const data = await rr.json()
@@ -36,7 +34,6 @@ async function http(path, { method='GET', headers={}, body, retry=true } = {}){
   return out
 }
 
-// ===== Auth helpers (used by AuthContext) =====
 export async function apiLogin({ email, password }){
   const data = await http('/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
   if (data.access) setTokens({ access: data.access, refresh: data.refresh })
@@ -44,14 +41,13 @@ export async function apiLogin({ email, password }){
 }
 export async function apiLogout(){
   const tokens = getTokens()
-  try{ await http('/auth/logout', { method:'POST', body: JSON.stringify({ refresh: tokens.refresh||'' }) }) }catch(e){ /* ignore */ }
+  try{ await http('/auth/logout', { method:'POST', body: JSON.stringify({ refresh: tokens.refresh||'' }) }) }catch(e){}
   setTokens({})
 }
 export async function apiMe(){
   return await http('/users/me')
 }
 
-// ===== Objects =====
 export async function getObjects({ mine, status } = {}){
   const qs = new URLSearchParams()
   if (mine != null) qs.set('mine', String(mine))
@@ -70,7 +66,6 @@ export async function getObjectHistory(id, { limit=50, offset=0 } = {}){
   return await http(`/objects/${id}/history?${qs.toString()}`)
 }
 
-// ===== Users =====
 export async function getForemen(){ return await http('/foremen') }
 export async function searchUsers({ role, query } = {}){
   const qs = new URLSearchParams()
@@ -79,7 +74,6 @@ export async function searchUsers({ role, query } = {}){
   return await http(`/users?${qs.toString()}`)
 }
 
-// ===== Notifications =====
 const NOTIFICATIONS_BASE = 'https://building-notifications.itc-hub.ru'
 
 async function notificationsHttp(path, { method='GET', headers={}, body, retry=true } = {}){
@@ -91,7 +85,6 @@ async function notificationsHttp(path, { method='GET', headers={}, body, retry=t
   try{ console.log(`[notifications →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[notifications →]`, ts, method, url) }
   const res = await fetch(url, { method, headers:h, body })
   if (res.status === 401 && retry && tokens.refresh){
-    // try refresh
     const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
     if (rr.ok){
       const data = await rr.json()
@@ -114,8 +107,7 @@ async function notificationsHttp(path, { method='GET', headers={}, body, retry=t
 export async function getNotifications(userId){ return await notificationsHttp(`/notifications/${userId}`) }
 export async function markNotificationRead(id){ return await notificationsHttp(`/notifications/${id}/read`, { method:'PATCH' }) }
 
-// ===== Visits =====
-const VISITS_BASE = 'https://building-visits.itc-hub.ru'
+const VISITS_BASE = 'https://building-qr.itc-hub.ru'
 
 async function visitsHttp(path, { method='GET', headers={}, body, retry=true } = {}){
   const url = path.startsWith('http') ? path : `${VISITS_BASE}${path}`
@@ -126,7 +118,6 @@ async function visitsHttp(path, { method='GET', headers={}, body, retry=true } =
   try{ console.log(`[visits →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[visits →]`, ts, method, url) }
   const res = await fetch(url, { method, headers:h, body })
   if (res.status === 401 && retry && tokens.refresh){
-    // try refresh
     const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
     if (rr.ok){
       const data = await rr.json()
@@ -154,31 +145,47 @@ export async function getVisits(params = {}){
 }
 export async function getPlannedVisits(objectId){ return await visitsHttp(`/api/v1/sessions/planned/${objectId}`) }
 
-// ===== Memos =====
 export async function getMemos(){ return await http('/memos') }
 
-// ===== Files / Documents / Exec docs =====
 export async function getFileTree({ object_id } = {}){
   const qs = new URLSearchParams()
   if (object_id) qs.set('object_id', object_id)
   return await http(`/documents?${qs.toString()}`)
 }
-// ===== Tickets =====
-export async function getTickets({ status } = {}){
-  const qs = new URLSearchParams()
-  if (status) qs.set('status', status)
-  qs.set('mine', 'true')
-  return await http(`/tickets?${qs.toString()}`)
-}
-export async function createTicket({ object_id, title, body, text }){
-  const payload = { object_id: object_id||undefined, text: text || body || title }
-  return await http('/tickets', { method:'POST', body: JSON.stringify(payload) })
-}
-export async function setTicketStatus({ id, status }){
-  return await http(`/tickets/${id}/status`, { method:'POST', body: JSON.stringify({ status }) })
+const TICKETS_BASE = 'https://building-admin.itc-hub.ru'
+
+async function ticketsHttp(path, { method='GET', headers={}, body, retry=true } = {}){
+  const url = path.startsWith('http') ? path : `${TICKETS_BASE}${path}`
+  const tokens = getTokens()
+  const h = { 'Content-Type':'application/json', ...headers }
+  if (tokens.access) h['Authorization'] = `Bearer ${tokens.access}`
+  const ts = new Date().toISOString()
+  try{ console.log(`[tickets →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[tickets →]`, ts, method, url) }
+  const res = await fetch(url, { method, headers:h, body })
+  if (res.status === 401 && retry && tokens.refresh){
+    const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
+    if (rr.ok){
+      const data = await rr.json()
+      setTokens({ access: data.access, refresh: data.refresh || tokens.refresh })
+      console.log('[tickets ◇] token refreshed')
+      return ticketsHttp(path, { method, headers, body, retry:false })
+    }
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=>`HTTP ${res.status}`)
+    console.warn(`[tickets ←]`, method, url, res.status, txt)
+    throw new Error(txt || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type')||''
+  const out = ct.includes('application/json') ? await res.json() : await res.text()
+  try{ console.log(`[tickets ←]`, method, url, res.status, out) }catch{ console.log(`[tickets ←]`, method, url, res.status) }
+  return out
 }
 
-// ===== Work plans / schedules =====
+export async function createTicket(data){ 
+  return await ticketsHttp('/tickets/create', { method:'POST', body: JSON.stringify(data) }) 
+}
+
 export async function getSchedules({ object_id } = {}){
   const qs = new URLSearchParams()
   if (object_id) qs.set('object_id', object_id)
@@ -192,7 +199,6 @@ export async function getWorkPlans({ object_id } = {}){
 }
 
 
-// ===== Work plans =====
 export async function createWorkPlan({ object_id, items, title }){
   const payload = { object_id, items }
   if (title) payload.title = title
@@ -215,7 +221,6 @@ export async function approveWorkPlanChange({ id, decision, comment }){
   return await http(`/work-plans/${id}/approve-change`, { method:'POST', body: JSON.stringify({ decision, comment }) })
 }
 
-// ===== Visits & QR =====
 export async function getVisitRequests(params = {}){
   const qs = new URLSearchParams()
   for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
@@ -229,7 +234,6 @@ export async function getQrCode(id){ return await http(`/qr-codes/${id}`) }
 export async function scanQrCode(id, payload){ return await http(`/qr-codes/${id}/scan`, { method:'POST', body: JSON.stringify(payload) }) }
 export async function closeQrUpload(id, payload){ return await http(`/qr-codes/${id}/upload-complete`, { method:'POST', body: JSON.stringify(payload) }) }
 
-// ===== Deliveries / Invoices / Labs =====
 export async function getDeliveries({ object_id, limit, offset } = {}){
   const qs = new URLSearchParams()
   if (object_id) qs.set('object_id', object_id)
@@ -256,11 +260,9 @@ export async function attachLabResults({ order_id, pdf_url, key_metrics }){
   return await http('/labs/results', { method:'POST', body: JSON.stringify({ order_id, pdf_url, key_metrics }) })
 }
 
-// ===== Violations / Prescriptions =====
 export async function getViolations(params = {}){
   const qs = new URLSearchParams()
   for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
-  // alias in backend to prescriptions list
   return await http(`/violations?${qs.toString()}`)
 }
 export async function getViolation(id){
@@ -278,7 +280,6 @@ export async function reviewViolation({ id, decision, comment }){
 export async function confirmViolation({ id }){ return reviewViolation({ id, decision:'approve' }) }
 export async function declineViolation({ id }){ return reviewViolation({ id, decision:'reject' }) }
 
-// ===== Daily checklists =====
 export async function createDailyChecklist(payload){ return await http('/daily-checklists', { method:'POST', body: JSON.stringify(payload) }) }
 export async function getDailyChecklists(params={}){
   const qs = new URLSearchParams()
@@ -290,7 +291,6 @@ export async function reviewDailyChecklist({ id, decision, comment, photos }){
 }
 export async function markDailyChecklistReviewed({ id }){ return reviewDailyChecklist({ id, decision:'approve' }) }
 
-// ===== AI =====
 export async function getAIObjectReports({ object_id }){
   return await http('/ai/structured', { method:'POST', body: JSON.stringify({ prompt:`Сводка по объекту ${object_id}`, schema_json:{ type:'object', properties:{ summary:{ type:'string' } }, required:['summary'] } }) })
 }
@@ -299,12 +299,10 @@ export async function aiChat({ object_id, message }){
   return { reply: r.text || '' }
 }
 
-// ===== Misc =====
 export function getEnv(){ 
   return { api_url: BASE, build_mode: import.meta.env.MODE }
 }
 
-// ===== Areas (polygons) =====
 export async function createArea({ name, geometry, object }){
   return await http('/areas', { method:'POST', body: JSON.stringify({ name, geometry, object }) })
 }
@@ -313,7 +311,6 @@ export async function getArea(id){
 }
 
 
-// Compatibility helpers (used by old UI components)
 export async function acceptDelivery({ id, comment }){
   return await setDeliveryStatus({ id, status: 'accepted', comment })
 }
@@ -322,9 +319,6 @@ export async function sendDeliveryToLab({ id, comment }){
 }
 
 
-// Upload delivery photo (compat):
-// NOTE: backend upload endpoint is not defined; this client helper only returns a stub object
-// so the UI can proceed. Replace later with real upload (signed URL -> PUT -> confirm).
 export async function uploadDeliveryPhoto({ delivery_id, file }){
   return { id: `p_${Date.now()}`, name: (file && file.name) || 'photo.jpg', delivery_id }
 }

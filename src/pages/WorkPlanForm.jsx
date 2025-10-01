@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { createWorkPlan, getObject } from '../api/mock.js'
+import { createWorkPlan, getObject } from '../api/api.js'
 
 export default function WorkPlanForm(){
   const { objectId } = useParams()

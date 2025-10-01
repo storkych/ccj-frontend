@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getObjects } from '../api/mock.js'
+import { getObjects } from '../api/api.js'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getViolation, submitViolationReport, reviewViolation } from '../api/mock.js'
+import { getViolation, submitViolationReport, reviewViolation } from '../api/api.js'
 
 export default function ViolationDetail(){
   const { id } = useParams()

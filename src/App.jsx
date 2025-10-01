@@ -29,7 +29,6 @@ function Layout({ children }){
     { to:'/objects', label:'Объекты' },
     { to:'/files', label:'Файловое хранилище' },
     { to:'/notifications', label:'Уведомления' },
-    { to:'/profile', label:'Профиль' },
     { to:'/memos', label:'Памятки' },
     { to:'/ai', label:'ИИ чат' },
     { to:'/tickets', label:'Тикеты' },
@@ -62,14 +61,13 @@ function Layout({ children }){
       
       <aside>
         <div className="logo">
-          <div className="logo-badge"></div>
+          <img src="/src/assets/logo.svg" alt="СтройКонтроль" style={{width: 40, height: 40}} />
           <div className="hide-compact">СтройКонтроль</div>
         </div>
         <nav className="nav">
           {menu.map(item => (
             <NavLink key={item.to} className={({isActive})=>isActive?'active':''} to={item.to}>{item.label}</NavLink>
           ))}
-          {user && <button className="btn ghost" style={{marginTop:10}} onClick={logout}>Выйти</button>}
         </nav>
       </aside>
 
@@ -82,8 +80,55 @@ function Layout({ children }){
             <input placeholder="Поиск по объектам, актам, замечаниям…" />
           </div>
           {user ? (
-            <div className="row" style={{gap:8, alignItems:'center'}}>
-              <span className={`pill role-${user.role}`}>{user.role?.toUpperCase()}</span>
+            <div className="row" style={{gap:12, alignItems:'center'}}>
+              <NavLink to="/profile" className="profile-link" style={{display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:'8px', background:'var(--bg-secondary)', border:'1px solid var(--border)', textDecoration:'none', color:'var(--text)', transition:'all 0.2s'}}>
+                <div style={{ 
+                  width: '32px', 
+                  height: '32px', 
+                  borderRadius: '50%', 
+                  background: `linear-gradient(135deg, var(--brand), var(--brand)80)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: 'white'
+                }}>
+                  {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                </div>
+                <div style={{display:'flex', flexDirection:'column', alignItems:'flex-start'}}>
+                  <div style={{fontSize:'14px', fontWeight:'600', color:'var(--text)'}}>
+                    {user.full_name || 'Профиль'}
+                  </div>
+                  <div style={{fontSize:'12px', color:'var(--text-secondary)'}}>
+                    {user.role?.toUpperCase()}
+                  </div>
+                </div>
+              </NavLink>
+              <button 
+                className="profile-link logout" 
+                onClick={logout} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: 8, 
+                  padding: '8px 12px', 
+                  borderRadius: '8px', 
+                  background: 'var(--bg-secondary)', 
+                  border: '1px solid var(--border)', 
+                  textDecoration: 'none', 
+                  color: 'var(--text)', 
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  height: '48px',
+                  minWidth: '60px'
+                }}
+              >
+                Выйти
+              </button>
             </div>
           ) : null}
         </header>
@@ -101,7 +146,6 @@ function Protected({ children }){
     { to:'/objects', label:'Объекты' },
     { to:'/files', label:'Файловое хранилище' },
     { to:'/notifications', label:'Уведомления' },
-    { to:'/profile', label:'Профиль' },
     { to:'/memos', label:'Памятки' },
     { to:'/ai', label:'ИИ чат' },
     { to:'/tickets', label:'Тикеты' },

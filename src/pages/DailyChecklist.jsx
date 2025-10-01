@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { createDailyChecklist } from '../api/mock.js'
+import { createDailyChecklist } from '../api/api.js'
 
 const QUESTIONS = [
   { id:'q1', text:'Периметр ограждён и подсвечен' },

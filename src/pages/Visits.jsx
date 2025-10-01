@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getVisits, createVisit, getObjects } from '../api/mock.js'
+import { getVisits, createVisit, getObjects } from '../api/api.js'
 
 export default function Visits(){
   const { user } = useAuth()
@@ -104,30 +104,111 @@ export default function Visits(){
         <div className="muted">Загрузка посещений...</div>
       ) : (
         <div className="list">
-          {items.map(v => (
-            <article key={v.id} className="card" style={{padding: 16}}>
-              <div className="row" style={{justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8}}>
-                <div style={{flex: 1}}>
-                  <div style={{fontSize: '18px', fontWeight: '600', marginBottom: 4}}>
-                    {getObjectName(v.object_id)}
+          {items.map(v => {
+            const isToday = new Date(v.visit_date).toDateString() === new Date().toDateString()
+            const isPast = new Date(v.visit_date) < new Date()
+            const isFuture = new Date(v.visit_date) > new Date()
+            
+            return (
+              <article key={v.id} className="card" style={{
+                padding: 16,
+                border: isToday ? '2px solid var(--brand)' : '1px solid var(--border)',
+                backgroundColor: isToday ? 'var(--brand)10' : 'var(--panel)'
+              }}>
+                <div className="row" style={{justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12}}>
+                  <div style={{flex: 1}}>
+                    <div style={{fontSize: '18px', fontWeight: '600', marginBottom: 6}}>
+                      {getObjectName(v.object_id)}
+                    </div>
+                    <div className="row" style={{gap: 16, alignItems: 'center', marginBottom: 8}}>
+                      <div style={{color: 'var(--muted)', fontSize: '14px'}}>
+                        📅 {new Date(v.visit_date).toLocaleDateString('ru-RU', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </div>
+                      {isToday && (
+                        <span style={{
+                          backgroundColor: 'var(--brand)',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Сегодня
+                        </span>
+                      )}
+                      {isPast && !isToday && (
+                        <span style={{
+                          backgroundColor: '#6b7280',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Прошедшее
+                        </span>
+                      )}
+                      {isFuture && (
+                        <span style={{
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Запланировано
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{color: 'var(--muted)', marginBottom: 8}}>
-                    Дата: {new Date(v.visit_date).toLocaleDateString('ru-RU')}
+                  <div className="row" style={{gap: 12, alignItems: 'center'}}>
+                    <span className="pill" style={{
+                      backgroundColor: v.user_role === 'foreman' ? '#f59e0b20' : 
+                                      v.user_role === 'ssk' ? '#3b82f620' : '#8b5cf620',
+                      color: v.user_role === 'foreman' ? '#f59e0b' : 
+                             v.user_role === 'ssk' ? '#3b82f6' : '#8b5cf6',
+                      border: v.user_role === 'foreman' ? '1px solid #f59e0b40' : 
+                              v.user_role === 'ssk' ? '1px solid #3b82f640' : '1px solid #8b5cf640',
+                      fontWeight: '600'
+                    }}>
+                      {v.user_role === 'foreman' ? '🔨' : v.user_role === 'ssk' ? '👷' : '👁️'} {getRoleLabel(v.user_role)}
+                    </span>
                   </div>
                 </div>
-                <div className="row" style={{gap: 12, alignItems: 'center'}}>
-                  <span className="pill" style={{
-                    backgroundColor: 'var(--brand)20',
-                    color: 'var(--brand)',
-                    border: '1px solid var(--brand)40'
-                  }}>
-                    {getRoleLabel(v.user_role)}
-                  </span>
+                
+                <div style={{
+                  padding: '8px 12px',
+                  backgroundColor: 'var(--bg-light)',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)'
+                }}>
+                  {v.user_role === 'foreman' ? 'Автоматически созданное посещение для ежедневного контроля' : 
+                   v.user_role === 'ssk' ? 'Посещение ССК для контроля работ' : 
+                   'Посещение ИКО для проверки объекта'}
                 </div>
+              </article>
+            )
+          })}
+          {items.length === 0 && (
+            <div className="card" style={{padding: 40, textAlign: 'center'}}>
+              <div style={{fontSize: '48px', marginBottom: 16}}>📅</div>
+              <div style={{fontSize: '18px', fontWeight: '600', marginBottom: 8}}>Нет посещений</div>
+              <div style={{color: 'var(--muted)'}}>
+                {user?.role === 'foreman' ? 
+                  'Автоматически созданные посещения появятся здесь' :
+                  'Создайте новое посещение, нажав кнопку выше'
+                }
               </div>
-            </article>
-          ))}
-          {items.length === 0 && <div className="muted">Нет посещений.</div>}
+            </div>
+          )}
         </div>
       )}
 
