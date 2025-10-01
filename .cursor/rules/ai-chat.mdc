@@ -1,0 +1,32 @@
+---
+description: AI Chat page implementation and API integration
+---
+
+# AI Chat Page Implementation
+
+## API Endpoints
+- Base URL: `https://building-ai.itc-hub.ru`
+- `/generate` - General AI chat with prompt
+- `/object_question` - AI chat with specific object context
+
+## Request/Response Format
+```json
+// POST /generate
+{
+  "prompt": "string"
+}
+
+// POST /object_question  
+{
+  "object_id": "string",
+  "question": "string"
+}
+```
+
+## UI Requirements
+- Chat interface with message history
+- Object selector dropdown (optional)
+- Message input with send button
+- Beautiful styling consistent with other pages
+- Support for both general chat and object-specific questions
+- Loading states and error handling

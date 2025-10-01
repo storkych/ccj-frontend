@@ -1,5 +1,6 @@
 
 const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru';
+const AI_BASE = 'https://building-ai.itc-hub.ru';
 
 function getTokens(){
   try { return JSON.parse(localStorage.getItem('ccj_tokens')||'{}') } catch(e){ return {} }
@@ -321,4 +322,34 @@ export async function sendDeliveryToLab({ id, comment }){
 
 export async function uploadDeliveryPhoto({ delivery_id, file }){
   return { id: `p_${Date.now()}`, name: (file && file.name) || 'photo.jpg', delivery_id }
+}
+
+export async function generateAIResponse(prompt){
+  const url = `${AI_BASE}/generate`
+  const ts = new Date().toISOString()
+  try{ console.log(`[ai →]`, ts, 'POST', url, { prompt }) }catch{ console.log(`[ai →]`, ts, 'POST', url) }
+  const res = await fetch(url, { 
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify({ prompt }) 
+  })
+  if (!res.ok) throw new Error(`AI API error: ${res.status}`)
+  const data = await res.json()
+  console.log(`[ai ←]`, ts, 'POST', url, res.status, data)
+  return data
+}
+
+export async function askObjectQuestion(objectId, question){
+  const url = `${AI_BASE}/object_question`
+  const ts = new Date().toISOString()
+  try{ console.log(`[ai →]`, ts, 'POST', url, { object_id: objectId, question }) }catch{ console.log(`[ai →]`, ts, 'POST', url) }
+  const res = await fetch(url, { 
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify({ object_id: objectId, question }) 
+  })
+  if (!res.ok) throw new Error(`AI API error: ${res.status}`)
+  const data = await res.json()
+  console.log(`[ai ←]`, ts, 'POST', url, res.status, data)
+  return data
 }
