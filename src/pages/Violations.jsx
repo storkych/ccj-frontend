@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext.jsx'
 export default function Violations(){
   const { user } = useAuth()
   const [objectId, setObjectId] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [items, setItems] = useState([])
   const [objects, setObjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -38,6 +39,12 @@ export default function Violations(){
     loadData()
   }, [objectId])
 
+  // Фильтрация по статусу на фронте
+  const filteredItems = items.filter(item => {
+    if (!statusFilter) return true
+    return item.status === statusFilter
+  })
+
   const getObjectName = (obj) => {
     if (typeof obj === 'object' && obj.name && obj.address) {
       return `${obj.name} (${obj.address})`
@@ -53,6 +60,7 @@ export default function Violations(){
     const statusMap = {
       'open': { label: 'Открыто', color: '#ef4444' },
       'fixed': { label: 'Исправлено', color: '#f59e0b' },
+      'awaiting_verification': { label: 'Ожидает проверки', color: '#f59e0b' },
       'verified': { label: 'Проверено', color: '#10b981' },
       'closed': { label: 'Закрыто', color: '#6b7280' }
     }
@@ -62,23 +70,35 @@ export default function Violations(){
   return (
     <div className="page">
       <h1>Нарушения</h1>
-      <div className="row" style={{marginBottom: 20}}>
-        <label style={{width:160}}>Объект</label>
-        <select className="input" value={objectId} onChange={e=>setObjectId(e.target.value)}>
-          <option value="">Все объекты</option>
-          {objects.map(obj => (
-            <option key={obj.id} value={obj.id}>
-              {obj.name} - {obj.address}
-            </option>
-          ))}
-        </select>
+      <div className="row" style={{gap: 32, marginBottom: 16}}>
+        <div className="row" style={{gap: 8}}>
+          <label>Объект</label>
+          <select className="input" value={objectId} onChange={e=>setObjectId(e.target.value)}>
+            <option value="">Все объекты</option>
+            {objects.map(obj => (
+              <option key={obj.id} value={obj.id}>
+                {obj.name} - {obj.address}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="row" style={{gap: 8}}>
+          <label>Статус</label>
+          <select className="input" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+            <option value="">Все статусы</option>
+            <option value="open">Открыто</option>
+            <option value="awaiting_verification">Ожидает проверки</option>
+            <option value="verified">Проверено</option>
+            <option value="closed">Закрыто</option>
+          </select>
+        </div>
       </div>
       
       {loading ? (
         <div className="muted">Загрузка нарушений...</div>
       ) : (
         <div className="list">
-          {items.map(v=>{
+          {filteredItems.map(v=>{
             const statusInfo = getStatusInfo(v.status)
             return (
               <article key={v.id} className="card" style={{padding: 16}}>
@@ -121,7 +141,7 @@ export default function Violations(){
               </article>
             )
           })}
-          {items.length===0 && <div className="muted">Нет нарушений.</div>}
+          {filteredItems.length===0 && <div className="muted">Нет нарушений.</div>}
         </div>
       )}
     </div>

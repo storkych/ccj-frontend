@@ -70,6 +70,7 @@ export default function ViolationDetail(){
     const statusMap = {
       'open': { label: 'Открыто', color: '#ef4444' },
       'fixed': { label: 'Исправлено', color: '#f59e0b' },
+      'awaiting_verification': { label: 'Ожидает проверки', color: '#f59e0b' },
       'verified': { label: 'Проверено', color: '#10b981' },
       'closed': { label: 'Закрыто', color: '#6b7280' }
     }
@@ -160,7 +161,7 @@ export default function ViolationDetail(){
         </div>
       )}
 
-      {(user?.role === 'ssk' || user?.role === 'iko') && v.status === 'fixed' && (
+      {(user?.role === 'ssk' || user?.role === 'iko') && v.status === 'awaiting_verification' && (
         <div className="card" style={{marginBottom: 20}}>
           <h3 style={{marginTop: 0, marginBottom: 16}}>Проверка устранения</h3>
           <div style={{marginBottom: 12}}>

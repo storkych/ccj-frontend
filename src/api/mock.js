@@ -114,6 +114,46 @@ async function notificationsHttp(path, { method='GET', headers={}, body, retry=t
 export async function getNotifications(userId){ return await notificationsHttp(`/notifications/${userId}`) }
 export async function markNotificationRead(id){ return await notificationsHttp(`/notifications/${id}/read`, { method:'PATCH' }) }
 
+// ===== Visits =====
+const VISITS_BASE = 'https://building-visits.itc-hub.ru'
+
+async function visitsHttp(path, { method='GET', headers={}, body, retry=true } = {}){
+  const url = path.startsWith('http') ? path : `${VISITS_BASE}${path}`
+  const tokens = getTokens()
+  const h = { 'Content-Type':'application/json', ...headers }
+  if (tokens.access) h['Authorization'] = `Bearer ${tokens.access}`
+  const ts = new Date().toISOString()
+  try{ console.log(`[visits →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[visits →]`, ts, method, url) }
+  const res = await fetch(url, { method, headers:h, body })
+  if (res.status === 401 && retry && tokens.refresh){
+    // try refresh
+    const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
+    if (rr.ok){
+      const data = await rr.json()
+      setTokens({ access: data.access, refresh: data.refresh || tokens.refresh })
+      console.log('[visits ◇] token refreshed')
+      return visitsHttp(path, { method, headers, body, retry:false })
+    }
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=>`HTTP ${res.status}`)
+    console.warn(`[visits ←]`, method, url, res.status, txt)
+    throw new Error(txt || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type')||''
+  const out = ct.includes('application/json') ? await res.json() : await res.text()
+  try{ console.log(`[visits ←]`, method, url, res.status, out) }catch{ console.log(`[visits ←]`, method, url, res.status) }
+  return out
+}
+
+export async function createVisit(data){ return await visitsHttp('/api/v1/sessions/create', { method:'POST', body: JSON.stringify(data) }) }
+export async function getVisits(params = {}){ 
+  const qs = new URLSearchParams()
+  for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
+  return await visitsHttp(`/api/v1/sessions/list?${qs.toString()}`) 
+}
+export async function getPlannedVisits(objectId){ return await visitsHttp(`/api/v1/sessions/planned/${objectId}`) }
+
 // ===== Files / Documents / Exec docs =====
 export async function getFileTree({ object_id } = {}){
   const qs = new URLSearchParams()
