@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans } from '../api/mock.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea } from '../api/mock.js'
+import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
 }
 
-function Modal({ open, onClose, children }){
+function Modal({ open, onClose, children, style }){
   if(!open) return null
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="modal" onClick={e=>e.stopPropagation()} style={style}>
         {children}
       </div>
     </div>
@@ -29,6 +30,10 @@ export default function ObjectDetail(){
   const [saving, setSaving] = useState(false)
   const [workPlans, setWorkPlans] = useState([])
   const [workPlansLoading, setWorkPlansLoading] = useState(false)
+  const [areaModalOpen, setAreaModalOpen] = useState(false)
+  const [areaName, setAreaName] = useState('Строительный участок')
+  const [areaGeometryText, setAreaGeometryText] = useState('')
+  const [areaSaving, setAreaSaving] = useState(false)
 
   useEffect(()=>{
     getObject(id).then(o=>{ console.log('[ui object-detail] loaded', o); setObj(o) }).catch(e=>{ console.warn('[ui object-detail] error', e); setObj(null) }).finally(()=>setLoading(false))
@@ -59,6 +64,59 @@ export default function ObjectDetail(){
     setObj(updated)
     setSaving(false)
     setAssignOpen(false)
+  }
+
+  function AreasPreview({ areas = [] }){
+    if (!areas.length) return <div className="muted">Полигоны не заданы</div>
+    // Соберём все координаты, чтобы нормировать в SVG 200x200
+    const coords = []
+    areas.forEach(a => {
+      const g = a.geometry
+      if (!g) return
+      if (g.type === 'Polygon') {
+        g.coordinates[0].forEach(([x,y]) => coords.push({ x, y }))
+      } else if (g.type === 'MultiPolygon') {
+        g.coordinates.forEach(poly => poly[0].forEach(([x,y]) => coords.push({ x, y })))
+      }
+    })
+    if (!coords.length) return <div className="muted">Нет координат для отображения</div>
+    const minX = Math.min(...coords.map(c=>c.x))
+    const maxX = Math.max(...coords.map(c=>c.x))
+    const minY = Math.min(...coords.map(c=>c.y))
+    const maxY = Math.max(...coords.map(c=>c.y))
+    const w = 220, h = 220, pad = 10
+    const scaleX = (w - pad*2) / Math.max(1e-9, (maxX - minX))
+    const scaleY = (h - pad*2) / Math.max(1e-9, (maxY - minY))
+    const s = Math.min(scaleX, scaleY)
+    const toSvg = ([x,y]) => {
+      const sx = pad + (x - minX) * s
+      const sy = pad + (maxY - y) * s // инвертируем Y для SVG
+      return `${sx},${sy}`
+    }
+    return (
+      <div className="row" style={{gap:12, flexWrap:'wrap'}}>
+        {areas.map(a => (
+          <div key={a.id || a.uuid_area} className="card" style={{padding:8}}>
+            <div className="row" style={{justifyContent:'space-between', marginBottom:6}}>
+              <strong>{a.name || `Area #${a.id}`}</strong>
+              {(a.uuid_area||a.id) && <span className="pill" style={{fontSize:12}}>{a.uuid_area||a.id}</span>}
+            </div>
+            <svg width={w} height={h} style={{border:'1px solid var(--border)', borderRadius:6}}>
+              {a.geometry?.type === 'Polygon' && (
+                <polygon
+                  points={a.geometry.coordinates[0].map(pt=>toSvg(pt)).join(' ')}
+                  fill="#22c55e22" stroke="#16a34a" strokeWidth="2" />
+              )}
+              {a.geometry?.type === 'MultiPolygon' && a.geometry.coordinates.map((poly, idx)=>(
+                <polygon key={idx}
+                  points={poly[0].map(pt=>toSvg(pt)).join(' ')}
+                  fill="#22c55e22" stroke="#16a34a" strokeWidth="2" />
+              ))}
+            </svg>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   if(loading) return <div className="card">Загрузка…</div>
@@ -191,6 +249,21 @@ export default function ObjectDetail(){
         )}
       </section>
 
+      {(obj.areas && obj.areas.length > 0) && (
+        <section className="card">
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
+            <h3 style={{marginTop:0}}>Геозона объекта</h3>
+            <span className="muted">Просмотр полигона</span>
+          </div>
+          <div style={{marginTop:8}}>
+            <AreaMap
+              readOnly
+              polygons={(obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name }))}
+            />
+          </div>
+        </section>
+      )}
+
       <section className="card">
         <h3 style={{marginTop:0}}>Исполнительная документация</h3>
         <div className="row" style={{gap:8}}>
@@ -215,10 +288,47 @@ export default function ObjectDetail(){
             }}>Стать ответственным (ССК)</button>}
             {!obj.foreman && <button className="btn" onClick={openAssign}>Назначить прораба</button>}
             {workPlans.length === 0 && <button className="btn ghost" onClick={()=>location.assign('/work-plans/new')}>Добавить график работ</button>}
+            {(obj.areas?.length||0) === 0 && <button className="btn" onClick={()=>setAreaModalOpen(true)}>Создать полигон</button>}
           </div>
         </section>
       )}
 
+      <Modal open={areaModalOpen} onClose={()=>setAreaModalOpen(false)} style={{ width:'95vw', maxWidth:'95vw' }}>
+        <div style={{ width:'100%' }}> 
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
+            <h3 style={{marginTop:0}}>Создать полигон</h3>
+            <button className="btn ghost" onClick={()=>setAreaModalOpen(false)}>✕</button>
+          </div>
+          <div className="form">
+            <div className="row" style={{gap:8, alignItems:'center'}}>
+              <label style={{width:140}}>Название</label>
+              <input className="input" placeholder="Строительный участок" value={areaName} onChange={e=>setAreaName(e.target.value)} />
+            </div>
+            <div style={{marginTop:8}}>
+              <AreaMap
+                polygons={[]}
+                height={'75vh'}
+                onPolygonCreated={async (geometry)=>{
+                  try{
+                    setAreaSaving(true)
+                    await createArea({ name: areaName || 'Строительный участок', geometry, object: Number(id) })
+                    const fresh = await getObject(id)
+                    setObj(fresh)
+                    setAreaModalOpen(false)
+                  }catch(e){
+                    alert('Ошибка сохранения: '+(e?.message||''))
+                  }finally{
+                    setAreaSaving(false)
+                  }
+                }}
+              />
+            </div>
+            <div className="row" style={{justifyContent:'flex-end', gap:8, marginTop:8}}>
+              <button className="btn ghost" onClick={()=>setAreaModalOpen(false)} disabled={areaSaving}>Отмена</button>
+            </div>
+          </div>
+        </div>
+      </Modal>
       <Modal open={assignOpen} onClose={()=>setAssignOpen(false)}>
         <h3 style={{marginTop:0}}>Назначить прораба</h3>
         <div className="form">

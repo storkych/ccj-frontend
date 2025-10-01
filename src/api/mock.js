@@ -227,6 +227,14 @@ export function getEnv(){
   return { api_url: BASE, build_mode: import.meta.env.MODE }
 }
 
+// ===== Areas (polygons) =====
+export async function createArea({ name, geometry, object }){
+  return await http('/areas', { method:'POST', body: JSON.stringify({ name, geometry, object }) })
+}
+export async function getArea(id){
+  return await http(`/areas/${id}`)
+}
+
 
 // Compatibility helpers (used by old UI components)
 export async function acceptDelivery({ id, comment }){
