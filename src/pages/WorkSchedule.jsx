@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getSchedules, getObjects, getWorkPlan } from '../api/mock.js'
+import { getSchedules, getObjects, getWorkPlan, updateWorkItemStatus } from '../api/mock.js'
 
 export default function WorkSchedule(){
   const { user } = useAuth()
@@ -13,6 +13,7 @@ export default function WorkSchedule(){
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [planDetails, setPlanDetails] = useState(null)
   const [planLoading, setPlanLoading] = useState(false)
+  const [updatingItems, setUpdatingItems] = useState(new Set())
 
   // Загружаем объекты для фильтрации
   useEffect(()=>{
@@ -147,7 +148,7 @@ export default function WorkSchedule(){
       {/* Модальное окно с деталями плана */}
       {selectedPlan && (
         <div className="modal-backdrop" onClick={closePlanDetails}>
-          <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:'800px', maxHeight:'80vh', overflow:'auto'}}>
+          <div className="modal" onClick={e=>e.stopPropagation()} style={{width:'95vw', maxWidth:'95vw', maxHeight:'90vh', overflow:'auto'}}>
             <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
               <h3 style={{margin:0}}>Детали рабочего плана</h3>
               <button className="btn ghost" onClick={closePlanDetails}>✕</button>
@@ -173,9 +174,9 @@ export default function WorkSchedule(){
                 </div>
 
                 {/* Показываем элементы работ, если они есть */}
-                {planDetails.items && planDetails.items.length > 0 && (
+                {planDetails.work_items && planDetails.work_items.length > 0 && (
                   <div className="card">
-                    <h4 style={{marginTop:0}}>Элементы работ ({planDetails.items.length})</h4>
+                    <h4 style={{marginTop:0}}>Элементы работ ({planDetails.work_items.length})</h4>
                     <table className="table" style={{marginTop:12}}>
                       <thead>
                         <tr>
@@ -184,17 +185,26 @@ export default function WorkSchedule(){
                           <th>Единица</th>
                           <th>Начало</th>
                           <th>Окончание</th>
+                          <th>Статус</th>
                           <th>Документ</th>
+                          {user?.role === 'ssk' && <th>Действия</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {planDetails.items.map((item, idx) => (
-                          <tr key={idx}>
+                        {planDetails.work_items.map((item, idx) => (
+                          <tr key={item.id || idx}>
                             <td>{item.name}</td>
                             <td>{item.quantity || '—'}</td>
                             <td>{item.unit || '—'}</td>
                             <td>{item.start_date ? new Date(item.start_date).toLocaleDateString('ru-RU') : '—'}</td>
                             <td>{item.end_date ? new Date(item.end_date).toLocaleDateString('ru-RU') : '—'}</td>
+                            <td>
+                              <span className={`pill status-${item.status}`}>
+                                {item.status === 'planned' ? 'Запланировано' : 
+                                 item.status === 'in_progress' ? 'В работе' : 
+                                 item.status === 'done' ? 'Выполнено' : item.status}
+                              </span>
+                            </td>
                             <td>
                               {item.document_url ? (
                                 <a href={item.document_url} target="_blank" rel="noopener noreferrer" className="btn small">
@@ -202,6 +212,63 @@ export default function WorkSchedule(){
                                 </a>
                               ) : '—'}
                             </td>
+                            {user?.role === 'ssk' && (
+                              <td>
+                                <div className="row" style={{gap:4}}>
+                                  {item.status !== 'in_progress' && item.status !== 'done' && (
+                                    <button 
+                                      className="btn small" 
+                                      disabled={updatingItems.has(item.id)}
+                                      onClick={async () => {
+                                        setUpdatingItems(prev => new Set(prev).add(item.id))
+                                        try {
+                                          await updateWorkItemStatus(item.id, 'in_progress')
+                                          const updated = await getWorkPlan(planDetails.id)
+                                          setPlanDetails(updated)
+                                        } catch (e) {
+                                          alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        } finally {
+                                          setUpdatingItems(prev => {
+                                            const next = new Set(prev)
+                                            next.delete(item.id)
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                    >
+                                      {updatingItems.has(item.id) ? '...' : 'Начать'}
+                                    </button>
+                                  )}
+                                  {item.status === 'in_progress' && (
+                                    <button 
+                                      className="btn small" 
+                                      disabled={updatingItems.has(item.id)}
+                                      onClick={async () => {
+                                        setUpdatingItems(prev => new Set(prev).add(item.id))
+                                        try {
+                                          await updateWorkItemStatus(item.id, 'done')
+                                          const updated = await getWorkPlan(planDetails.id)
+                                          setPlanDetails(updated)
+                                        } catch (e) {
+                                          alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        } finally {
+                                          setUpdatingItems(prev => {
+                                            const next = new Set(prev)
+                                            next.delete(item.id)
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                    >
+                                      {updatingItems.has(item.id) ? '...' : 'Завершить'}
+                                    </button>
+                                  )}
+                                  {item.status === 'done' && (
+                                    <span className="pill status-done">Выполнено</span>
+                                  )}
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -235,7 +302,7 @@ export default function WorkSchedule(){
                 )}
 
                 {/* Если нет ни элементов, ни версий, показываем информационное сообщение */}
-                {(!planDetails.items || planDetails.items.length === 0) && 
+                {(!planDetails.work_items || planDetails.work_items.length === 0) && 
                  (!planDetails.versions || planDetails.versions.length === 0) && (
                   <div className="card">
                     <h4 style={{marginTop:0}}>Информация о плане</h4>

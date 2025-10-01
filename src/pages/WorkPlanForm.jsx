@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { createWorkPlan, getObjects } from '../api/mock.js'
+import { useParams, useNavigate } from 'react-router-dom'
+import { createWorkPlan, getObject } from '../api/mock.js'
 
 export default function WorkPlanForm(){
-  const [objectId, setObjectId] = useState('')
-  const [objects, setObjects] = useState([])
+  const { objectId } = useParams()
+  const navigate = useNavigate()
+  const [object, setObject] = useState(null)
   const [title, setTitle] = useState('')
   const [rows, setRows] = useState([
     { name:'Планировка площадки', quantity:1, unit:'усл.', start_date:'2025-10-01', end_date:'2025-10-10', document_url:'' }
@@ -16,30 +18,35 @@ export default function WorkPlanForm(){
   const update = (idx, field, val) => setRows(r => r.map((row,i)=> i===idx ? { ...row, [field]:val } : row))
 
   useEffect(()=>{
-    // ССК видит все объекты, но форма общая — подтянем список без mine
-    getObjects({}).then(r=>setObjects(r.items||[])).catch(()=>setObjects([]))
-  }, [])
+    if (objectId) {
+      getObject(objectId).then(obj => {
+        console.log('[ui work-plan-form] object loaded', obj)
+        setObject(obj)
+      }).catch(e => {
+        console.warn('[ui work-plan-form] object error', e)
+        setObject(null)
+      })
+    }
+  }, [objectId])
 
   const isValid = useMemo(()=>{
-    if (!objectId) return false
+    if (!object) return false
     if (!rows.length) return false
     for (const it of rows){
       if (!it.name || !it.start_date || !it.end_date) return false
     }
     return true
-  }, [objectId, rows])
+  }, [object, rows])
 
   const submit = async (e) => {
     e.preventDefault()
     if (!isValid) return
     setSaving(true)
     try{
-      const selected = objects.find(o => String(o.id) === String(objectId))
-      if (!selected?.uuid_obj){
-        throw new Error('Для выбранного объекта отсутствует uuid_obj')
-      }
-      const resUuid = await createWorkPlan({ object_id: selected.uuid_obj, items: rows, title: title||undefined })
+      const resUuid = await createWorkPlan({ object_id: Number(objectId), items: rows, title: title||undefined })
       setResult(resUuid)
+      // Перенаправляем обратно на страницу объекта
+      setTimeout(() => navigate(`/objects/${objectId}`), 2000)
     }catch(err){
       alert('Ошибка создания плана: ' + (err?.message || ''))
     }finally{
@@ -50,14 +57,12 @@ export default function WorkPlanForm(){
   return (
     <section className="card">
       <h2 style={{marginTop:0}}>Электронная спецификация и перечень работ</h2>
-      <form className="form" onSubmit={submit}>
-        <div className="row">
-          <label style={{width:160}}>Объект</label>
-          <select className="input" value={objectId} onChange={e=>setObjectId(e.target.value)}>
-            <option value="" disabled>Выберите объект…</option>
-            {objects.map(o => <option key={o.id} value={o.id}>{o.name} — {o.address}</option>)}
-          </select>
+      {object && (
+        <div className="row" style={{marginBottom:16, padding:12, backgroundColor:'var(--bg-light)', borderRadius:8, border:'1px solid var(--border)'}}>
+          <strong>Объект:</strong> {object.name} — {object.address}
         </div>
+      )}
+      <form className="form" onSubmit={submit}>
         <div className="row">
           <label style={{width:160}}>Название плана</label>
           <input className="input" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Опционально" />

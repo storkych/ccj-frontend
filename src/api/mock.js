@@ -131,6 +131,10 @@ export async function addWorkPlanVersion({ id, doc_url }){
 export async function getWorkPlan(id){
   return await http(`/work-plans/${id}`)
 }
+
+export async function updateWorkItemStatus(id, status){
+  return await http(`/work-items/${id}/status`, { method:'POST', body: JSON.stringify({ status }) })
+}
 export async function requestWorkPlanChange({ id, proposed_doc_url, comment }){
   return await http(`/work-plans/${id}/request-change`, { method:'POST', body: JSON.stringify({ proposed_doc_url, comment }) })
 }

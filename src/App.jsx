@@ -150,7 +150,7 @@ export default function App(){
         <Route path="/" element={<Protected><Layout><Navigate to="/objects" /></Layout></Protected>} />
         <Route path="/objects" element={<Protected><Layout><Objects/></Layout></Protected>} />
         <Route path="/objects/:id" element={<Protected><Layout><ObjectDetail/></Layout></Protected>} />
-        <Route path="/work-plans/new" element={<Protected><Layout><WorkPlanForm/></Layout></Protected>} />
+        <Route path="/work-plans/new/:objectId" element={<Protected><Layout><WorkPlanForm/></Layout></Protected>} />
         <Route path="/daily-checklist" element={<Protected><RoleProtected roles={["foreman"]}><Layout><DailyChecklist/></Layout></RoleProtected></Protected>} />
 
         <Route path="/files" element={<Protected><Layout><FileStorage/></Layout></Protected>} />

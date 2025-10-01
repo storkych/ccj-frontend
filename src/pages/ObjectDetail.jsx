@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea } from '../api/mock.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus } from '../api/mock.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -30,6 +30,8 @@ export default function ObjectDetail(){
   const [saving, setSaving] = useState(false)
   const [workPlans, setWorkPlans] = useState([])
   const [workPlansLoading, setWorkPlansLoading] = useState(false)
+  const [workPlanDetails, setWorkPlanDetails] = useState(null)
+  const [updatingItems, setUpdatingItems] = useState(new Set())
   const [areaModalOpen, setAreaModalOpen] = useState(false)
   const [areaName, setAreaName] = useState('Строительный участок')
   const [areaGeometryText, setAreaGeometryText] = useState('')
@@ -45,9 +47,22 @@ export default function ObjectDetail(){
     getWorkPlans({ object_id: obj.id }).then(plans=>{
       console.log('[ui object-detail] work plans loaded', plans)
       setWorkPlans(plans.items || [])
+      // Загружаем детали первого плана, если есть
+      if(plans.items && plans.items.length > 0) {
+        getWorkPlan(plans.items[0].id).then(details => {
+          console.log('[ui object-detail] work plan details loaded', details)
+          setWorkPlanDetails(details)
+        }).catch(e => {
+          console.warn('[ui object-detail] work plan details error', e)
+          setWorkPlanDetails(null)
+        })
+      } else {
+        setWorkPlanDetails(null)
+      }
     }).catch(e=>{
       console.warn('[ui object-detail] work plans error', e)
       setWorkPlans([])
+      setWorkPlanDetails(null)
     }).finally(()=>setWorkPlansLoading(false))
   }, [obj])
 
@@ -139,16 +154,36 @@ export default function ObjectDetail(){
     <div className="grid">
       <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
         <h2 style={{margin:0}}>{obj.name}</h2>
-        <div style={{
-          padding:'6px 12px',
-          backgroundColor: statusInfo.bgColor,
-          color: statusInfo.color,
-          borderRadius:'8px',
-          fontSize:'14px',
-          fontWeight:'600',
-          border: `1px solid ${statusInfo.color}30`
-        }}>
-          {statusInfo.label}
+        <div className="row" style={{gap:8, alignItems:'center'}}>
+          <div style={{
+            padding:'6px 12px',
+            backgroundColor: statusInfo.bgColor,
+            color: statusInfo.color,
+            borderRadius:'8px',
+            fontSize:'14px',
+            fontWeight:'600',
+            border: `1px solid ${statusInfo.color}30`
+          }}>
+            {statusInfo.label}
+          </div>
+          {user?.role === 'ssk' && (!obj.ssk || !obj.foreman || workPlans.length === 0 || (obj.areas?.length||0) === 0) && (
+            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px'}}>
+              <div className="row" style={{gap:6}}>
+                {!obj.ssk && <button className="btn small" onClick={async()=>{ 
+                  try{
+                    const u = await patchObject(obj.id, { ssk_id: user.id }); 
+                    setObj(u);
+                    alert('Вы стали ответственным за объект')
+                  }catch(e){
+                    alert('Ошибка: ' + (e?.message || ''))
+                  }
+                }}>Стать ответственным</button>}
+                {!obj.foreman && <button className="btn small" onClick={openAssign}>Назначить прораба</button>}
+                {workPlans.length === 0 && <button className="btn small" onClick={()=>location.assign(`/work-plans/new/${id}`)}>Добавить график работ</button>}
+                {(obj.areas?.length||0) === 0 && <button className="btn small" onClick={()=>setAreaModalOpen(true)}>Создать полигон</button>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
@@ -220,6 +255,21 @@ export default function ObjectDetail(){
         </div>
       </section>
 
+      {(obj.areas && obj.areas.length > 0) && (
+        <section className="card">
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
+            <h3 style={{marginTop:0}}>Геозона объекта</h3>
+            <span className="muted">Просмотр полигона</span>
+          </div>
+          <div style={{marginTop:8}}>
+            <AreaMap
+              readOnly
+              polygons={(obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name }))}
+            />
+          </div>
+        </section>
+      )}
+
       <section className="card">
         <h3 style={{marginTop:0}}>Рабочие планы</h3>
         {workPlansLoading ? (
@@ -249,18 +299,106 @@ export default function ObjectDetail(){
         )}
       </section>
 
-      {(obj.areas && obj.areas.length > 0) && (
+      {/* Элементы работ */}
+      {workPlanDetails && workPlanDetails.work_items && workPlanDetails.work_items.length > 0 && (
         <section className="card">
-          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
-            <h3 style={{marginTop:0}}>Геозона объекта</h3>
-            <span className="muted">Просмотр полигона</span>
-          </div>
-          <div style={{marginTop:8}}>
-            <AreaMap
-              readOnly
-              polygons={(obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name }))}
-            />
-          </div>
+          <h3 style={{marginTop:0}}>Элементы работ ({workPlanDetails.work_items.length})</h3>
+          <table className="table" style={{marginTop:12}}>
+            <thead>
+              <tr>
+                <th>Название</th>
+                <th>Количество</th>
+                <th>Единица</th>
+                <th>Начало</th>
+                <th>Окончание</th>
+                <th>Статус</th>
+                <th>Документ</th>
+                {user?.role === 'ssk' && <th>Действия</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {workPlanDetails.work_items.map((item, idx) => (
+                <tr key={item.id || idx}>
+                  <td>{item.name}</td>
+                  <td>{item.quantity || '—'}</td>
+                  <td>{item.unit || '—'}</td>
+                  <td>{item.start_date ? new Date(item.start_date).toLocaleDateString('ru-RU') : '—'}</td>
+                  <td>{item.end_date ? new Date(item.end_date).toLocaleDateString('ru-RU') : '—'}</td>
+                  <td>
+                    <span className={`pill status-${item.status}`}>
+                      {item.status === 'planned' ? 'Запланировано' : 
+                       item.status === 'in_progress' ? 'В работе' : 
+                       item.status === 'done' ? 'Выполнено' : item.status}
+                    </span>
+                  </td>
+                  <td>
+                    {item.document_url ? (
+                      <a href={item.document_url} target="_blank" rel="noopener noreferrer" className="btn small">
+                        Открыть
+                      </a>
+                    ) : '—'}
+                  </td>
+                  {user?.role === 'ssk' && (
+                    <td>
+                      <div className="row" style={{gap:4}}>
+                        {item.status !== 'in_progress' && item.status !== 'done' && (
+                          <button 
+                            className="btn small" 
+                            disabled={updatingItems.has(item.id)}
+                            onClick={async () => {
+                              setUpdatingItems(prev => new Set(prev).add(item.id))
+                              try {
+                                await updateWorkItemStatus(item.id, 'in_progress')
+                                const updated = await getWorkPlan(workPlanDetails.id)
+                                setWorkPlanDetails(updated)
+                              } catch (e) {
+                                alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                              } finally {
+                                setUpdatingItems(prev => {
+                                  const next = new Set(prev)
+                                  next.delete(item.id)
+                                  return next
+                                })
+                              }
+                            }}
+                          >
+                            {updatingItems.has(item.id) ? '...' : 'Начать'}
+                          </button>
+                        )}
+                        {item.status === 'in_progress' && (
+                          <button 
+                            className="btn small" 
+                            disabled={updatingItems.has(item.id)}
+                            onClick={async () => {
+                              setUpdatingItems(prev => new Set(prev).add(item.id))
+                              try {
+                                await updateWorkItemStatus(item.id, 'done')
+                                const updated = await getWorkPlan(workPlanDetails.id)
+                                setWorkPlanDetails(updated)
+                              } catch (e) {
+                                alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                              } finally {
+                                setUpdatingItems(prev => {
+                                  const next = new Set(prev)
+                                  next.delete(item.id)
+                                  return next
+                                })
+                              }
+                            }}
+                          >
+                            {updatingItems.has(item.id) ? '...' : 'Завершить'}
+                          </button>
+                        )}
+                        {item.status === 'done' && (
+                          <span className="pill status-done">Выполнено</span>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
 
@@ -273,25 +411,6 @@ export default function ObjectDetail(){
         </div>
       </section>
 
-      {user?.role === 'ssk' && (
-        <section className="card">
-          <h3 style={{marginTop:0}}>Действия ССК</h3>
-          <div className="row" style={{gap:8}}>
-            {!obj.ssk && <button className="btn" onClick={async()=>{ 
-              try{
-                const u = await patchObject(obj.id, { ssk_id: user.id }); 
-                setObj(u);
-                alert('Вы стали ответственным за объект')
-              }catch(e){
-                alert('Ошибка: ' + (e?.message || ''))
-              }
-            }}>Стать ответственным (ССК)</button>}
-            {!obj.foreman && <button className="btn" onClick={openAssign}>Назначить прораба</button>}
-            {workPlans.length === 0 && <button className="btn ghost" onClick={()=>location.assign('/work-plans/new')}>Добавить график работ</button>}
-            {(obj.areas?.length||0) === 0 && <button className="btn" onClick={()=>setAreaModalOpen(true)}>Создать полигон</button>}
-          </div>
-        </section>
-      )}
 
       <Modal open={areaModalOpen} onClose={()=>setAreaModalOpen(false)} style={{ width:'95vw', maxWidth:'95vw' }}>
         <div style={{ width:'100%' }}> 
