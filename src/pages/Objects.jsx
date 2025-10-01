@@ -43,9 +43,9 @@ function ObjectCard({ obj }){
         </div>
       </div>
       <div className="row" style={{marginBottom:8}}>
-        <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{(obj.progress ?? 0)}%</span>
+        <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{(obj.work_progress ?? 0)}%</span>
       </div>
-      <Progress value={obj.progress ?? 0} />
+      <Progress value={obj.work_progress ?? 0} />
       <div style={{marginTop:16, marginBottom:12}}>
         <div className="row" style={{gap:8, justifyContent:'space-between'}}>
           <div style={{flex:1, minWidth:0}}>

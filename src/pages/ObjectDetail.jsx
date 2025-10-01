@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus } from '../api/mock.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck } from '../api/mock.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -11,7 +11,7 @@ function Progress({ value }){
 function Modal({ open, onClose, children, style }){
   if(!open) return null
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} style={{zIndex: 9998}}>
       <div className="modal" onClick={e=>e.stopPropagation()} style={style}>
         {children}
       </div>
@@ -36,6 +36,29 @@ export default function ObjectDetail(){
   const [areaName, setAreaName] = useState('Строительный участок')
   const [areaGeometryText, setAreaGeometryText] = useState('')
   const [areaSaving, setAreaSaving] = useState(false)
+  const [activationModalOpen, setActivationModalOpen] = useState(false)
+  const [checklistData, setChecklistData] = useState({})
+  const [activationSaving, setActivationSaving] = useState(false)
+
+  const ChecklistItem = ({ id, text }) => (
+    <div className="row" style={{gap:8, alignItems:'center', padding:'8px 12px', borderRadius:'6px', backgroundColor: checklistData[id] ? 'var(--bg-light)' : 'transparent', border: checklistData[id] ? '1px solid var(--border)' : '1px solid transparent'}}>
+      <span style={{flex:1}}>{text}</span>
+      <div className="row" style={{gap:12}}>
+        <label style={{display:'flex', alignItems:'center', gap:4, cursor:'pointer'}}>
+          <input type="radio" name={id} value="true" checked={checklistData[id] === 'true'} onChange={e=>setChecklistData(prev=>({...prev, [id]: e.target.value}))} />
+          <span>Да</span>
+        </label>
+        <label style={{display:'flex', alignItems:'center', gap:4, cursor:'pointer'}}>
+          <input type="radio" name={id} value="false" checked={checklistData[id] === 'false'} onChange={e=>setChecklistData(prev=>({...prev, [id]: e.target.value}))} />
+          <span>Нет</span>
+        </label>
+        <label style={{display:'flex', alignItems:'center', gap:4, cursor:'pointer'}}>
+          <input type="radio" name={id} value="not_required" checked={checklistData[id] === 'not_required'} onChange={e=>setChecklistData(prev=>({...prev, [id]: e.target.value}))} />
+          <span>Не требуется</span>
+        </label>
+      </div>
+    </div>
+  )
 
   useEffect(()=>{
     getObject(id).then(o=>{ console.log('[ui object-detail] loaded', o); setObj(o) }).catch(e=>{ console.warn('[ui object-detail] error', e); setObj(null) }).finally(()=>setLoading(false))
@@ -166,7 +189,7 @@ export default function ObjectDetail(){
           }}>
             {statusInfo.label}
           </div>
-          {user?.role === 'ssk' && (!obj.ssk || !obj.foreman || workPlans.length === 0 || (obj.areas?.length||0) === 0) && (
+          {user?.role === 'ssk' && (!obj.ssk || !obj.foreman || workPlans.length === 0 || (obj.areas?.length||0) === 0 || (obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko)) && (
             <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px'}}>
               <div className="row" style={{gap:6}}>
                 {!obj.ssk && <button className="btn small" onClick={async()=>{ 
@@ -181,6 +204,26 @@ export default function ObjectDetail(){
                 {!obj.foreman && <button className="btn small" onClick={openAssign}>Назначить прораба</button>}
                 {workPlans.length === 0 && <button className="btn small" onClick={()=>location.assign(`/work-plans/new/${id}`)}>Добавить график работ</button>}
                 {(obj.areas?.length||0) === 0 && <button className="btn small" onClick={()=>setAreaModalOpen(true)}>Создать полигон</button>}
+                {obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko && (
+                  <button className="btn small" onClick={async()=>{ 
+                    try{
+                      await requestActivation(obj.id);
+                      alert('Запрос на активацию отправлен')
+                      // Обновляем объект после активации
+                      const updated = await getObject(id);
+                      setObj(updated);
+                    }catch(e){
+                      alert('Ошибка активации: ' + (e?.message || ''))
+                    }
+                  }}>Активировать</button>
+                )}
+              </div>
+            </div>
+          )}
+          {user?.role === 'iko' && obj.status === 'activation_pending' && (
+            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px'}}>
+              <div className="row" style={{gap:6}}>
+                <button className="btn small" onClick={()=>setActivationModalOpen(true)}>Активировать объект</button>
               </div>
             </div>
           )}
@@ -234,9 +277,9 @@ export default function ObjectDetail(){
             <div style={{marginTop:8}}>
               <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:4}}>
                 <span style={{fontSize:'14px', fontWeight:'500', color:'var(--text)'}}>Прогресс выполнения</span>
-                <span style={{fontSize:'14px', fontWeight:'600', color:'var(--text)'}}>{obj.progress ?? 0}%</span>
+                <span style={{fontSize:'14px', fontWeight:'600', color:'var(--text)'}}>{obj.work_progress ?? 0}%</span>
               </div>
-              <Progress value={obj.progress ?? 0} />
+              <Progress value={obj.work_progress ?? 0} />
             </div>
           </div>
           
@@ -458,6 +501,69 @@ export default function ObjectDetail(){
           <div className="row" style={{justifyContent:'flex-end', gap:8}}>
             <button className="btn ghost" onClick={()=>setAssignOpen(false)}>Отмена</button>
             <button className="btn" onClick={assign} disabled={!selected || saving}>{saving?'Сохраняем…':'Назначить'}</button>
+          </div>
+        </div>
+      </Modal>
+      
+      {/* Модалка активации объекта ИКО */}
+      <Modal open={activationModalOpen} onClose={()=>setActivationModalOpen(false)} style={{ width:'90vw', maxWidth:'90vw', zIndex: 9999 }}>
+        <div style={{ width:'100%' }}>
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
+            <h3 style={{marginTop:0}}>Чек-лист активации объекта</h3>
+            <button className="btn ghost" onClick={()=>setActivationModalOpen(false)}>✕</button>
+          </div>
+          <div className="form" style={{maxHeight:'70vh', overflow:'auto'}}>
+            <div style={{marginBottom:20}}>
+              <h4>1. Наличие разрешительной, организационно-технологической, рабочей документации</h4>
+              <div style={{marginLeft:20, display:'flex', flexDirection:'column', gap:8}}>
+                <ChecklistItem id="1.1" text="1.1. Наличие приказа на ответственное лицо, осуществляющего строительство (производство работ)" />
+                <ChecklistItem id="1.2" text="1.2. Наличие приказа на ответственное лицо, осуществляющее строительный контроль" />
+                <ChecklistItem id="1.3" text="1.3. Наличие приказа на ответственное лицо, осуществляющее подготовку проектной документации, авторский надзор" />
+                <ChecklistItem id="1.4" text="1.4. Наличие проектной документации со штампом «В производство работ»" />
+                <ChecklistItem id="1.5" text="1.5. Наличие проекта производства работ (утвержденного руководителем подрядной организации)" />
+              </div>
+            </div>
+            
+            <div style={{marginBottom:20}}>
+              <h4>2. Инженерная подготовка строительной площадки</h4>
+              <div style={{marginLeft:20, display:'flex', flexDirection:'column', gap:8}}>
+                <ChecklistItem id="2.1" text="2.1. Наличие акта геодезической разбивочной основы, принятых знаков (реперов)" />
+                <ChecklistItem id="2.2" text="2.2. Наличие генерального плана (ситуационного плана)" />
+                <ChecklistItem id="2.3" text="2.3. Фактическое размещение временной инженерной и бытовой инфраструктуры площадки" />
+                <ChecklistItem id="2.4" text="2.4. Наличие пунктов очистки или мойки колес транспортных средств на выездах со строительной площадки" />
+                <ChecklistItem id="2.5" text="2.5. Наличие бункеров или контейнеров для сбора отдельно бытового и отдельно строительного мусора" />
+                <ChecklistItem id="2.6" text="2.6. Наличие информационных щитов (знаков) с указанием всех необходимых данных" />
+                <ChecklistItem id="2.7" text="2.7. Наличие стендов пожарной безопасности с указанием на схеме мест источников воды, средств пожаротушения" />
+              </div>
+            </div>
+            
+            <div className="row" style={{justifyContent:'flex-end', gap:8, marginTop:20}}>
+              <button className="btn ghost" onClick={()=>setActivationModalOpen(false)} disabled={activationSaving}>Отмена</button>
+              <button className="btn" onClick={async()=>{
+                try{
+                  setActivationSaving(true)
+                  // Фильтруем только те пункты, которые не "не требуется"
+                  const filteredData = Object.fromEntries(
+                    Object.entries(checklistData).filter(([key, value]) => value !== 'not_required' && value !== '')
+                  )
+                  // Конвертируем строки в boolean
+                  const booleanData = Object.fromEntries(
+                    Object.entries(filteredData).map(([key, value]) => [key, value === 'true'])
+                  )
+                  await ikoActivationCheck(obj.id, booleanData)
+                  alert('Объект успешно активирован')
+                  const updated = await getObject(id)
+                  setObj(updated)
+                  setActivationModalOpen(false)
+                }catch(e){
+                  alert('Ошибка активации: ' + (e?.message || ''))
+                }finally{
+                  setActivationSaving(false)
+                }
+              }} disabled={activationSaving}>
+                {activationSaving ? 'Активируем...' : 'Активировать объект'}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>

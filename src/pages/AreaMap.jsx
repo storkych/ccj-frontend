@@ -95,7 +95,7 @@ export default function AreaMap({
   }, [polygons])
 
   return (
-    <div ref={containerRef} style={{ width:'100%', height: typeof height==='number'? `${height}px` : height, border:'1px solid var(--border)', borderRadius:8 }} />
+    <div ref={containerRef} style={{ width:'100%', height: typeof height==='number'? `${height}px` : height, border:'1px solid var(--border)', borderRadius:8, position:'relative', zIndex: 1 }} />
   )
 }
 

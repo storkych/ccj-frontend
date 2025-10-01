@@ -34,6 +34,11 @@ main{padding:22px}
 .status-planned{background:#fef3c7; color:#92400e; border-color:#f59e0b}
 .status-in_progress{background:#dbeafe; color:#1e40af; border-color:#3b82f6}
 .status-done{background:#d1fae5; color:#065f46; border-color:#10b981}
+
+/* Ограничиваем z-index Leaflet карты */
+.leaflet-container { z-index: 1 !important; }
+.leaflet-control-container { z-index: 2 !important; }
+.leaflet-popup { z-index: 3 !important; }
 .table{width:100%; border-collapse:separate; border-spacing:0 8px}
 .table th{color:var(--muted); font-weight:600; text-align:left; padding:8px 10px}
 .table td{background:#11161c; border:1px solid #2b313b; border-left:0; border-right:0; padding:10px}
