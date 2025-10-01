@@ -77,26 +77,124 @@ export default function Visits(){
 
   return (
     <div className="page">
-      <div className="row" style={{justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-        <h1 style={{margin: 0}}>Посещения</h1>
-        {(user?.role === 'ssk' || user?.role === 'iko') && (
-          <button className="btn" onClick={() => setCreateModalOpen(true)}>
-            Создать посещение
-          </button>
-        )}
+      <div style={{marginBottom: '32px'}}>
+        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>Посещения</h1>
+        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
+          Управление посещениями объектов
+        </p>
       </div>
+      
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          {/* Фильтр по объекту */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            minWidth: '300px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--text)',
+              fontWeight: '500',
+              fontSize: '13px',
+              whiteSpace: 'nowrap'
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9,22 9,12 15,12 15,22"/>
+              </svg>
+              Объект:
+            </div>
+            <select 
+              className="input" 
+              value={objectId} 
+              onChange={e=>setObjectId(e.target.value)}
+              style={{
+                flex: 1,
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                color: 'var(--text)',
+                fontSize: '13px',
+                fontWeight: '400'
+              }}
+            >
+          <option value="">Все объекты</option>
+              {objects.map(obj => (
+                <option key={obj.id} value={obj.id}>
+                  {obj.name} - {obj.address}
+                </option>
+              ))}
+        </select>
+          </div>
 
-      <div className="row" style={{gap: 32, marginBottom: 16}}>
-        <div className="row" style={{gap: 8}}>
-          <label>Объект</label>
-          <select className="input" value={objectId} onChange={e=>setObjectId(e.target.value)}>
-            <option value="">Все объекты</option>
-            {objects.map(obj => (
-              <option key={obj.id} value={obj.id}>
-                {obj.name} - {obj.address}
-              </option>
-            ))}
-          </select>
+          {/* Счетчик результатов */}
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--muted)',
+            background: 'var(--bg-secondary)',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            border: '1px solid var(--border)',
+            whiteSpace: 'nowrap'
+          }}>
+            {items.length} посещений
+          </div>
+
+          {/* Кнопка создания посещения */}
+          {(user?.role === 'ssk' || user?.role === 'iko') && (
+            <button 
+              className="btn" 
+              onClick={() => setCreateModalOpen(true)}
+              style={{
+                padding: '6px 12px',
+                background: 'var(--brand)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#e67e00';
+                e.target.style.transform = 'translateY(-1px)';
+                e.target.style.boxShadow = '0 2px 8px rgba(255, 138, 0, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'var(--brand)';
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = 'none';
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Создать посещение
+            </button>
+          )}
         </div>
       </div>
       

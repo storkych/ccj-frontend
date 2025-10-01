@@ -22,56 +22,153 @@ function ObjectCard({ obj }){
   const statusInfo = getStatusInfo(obj.status)
   
   return (
-    <article className="card">
-      <div className="row" style={{justifyContent:'space-between', marginBottom:12, alignItems:'center'}}>
-        <div className="row" style={{gap:8, alignItems:'center'}}>
-          <h3 style={{margin:0}}>{obj.name}</h3>
-          <div style={{padding:'4px 8px', backgroundColor:'var(--bg-light)', border:'1px solid var(--border)', borderRadius:'6px', fontSize:'13px', color:'var(--text)', fontWeight:'500'}}>
-            📍 {obj.address}
+    <Link 
+      to={`/objects/${obj.id}`}
+      style={{ textDecoration: 'none', display: 'block' }}
+    >
+      <article className="card object-card" style={{
+        padding: 0,
+        position: 'relative',
+        borderLeft: `4px solid ${statusInfo.color}`,
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        transition: 'all 0.2s ease',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        cursor: 'pointer'
+      }}>
+      {/* Цветная полоса сверху */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '3px',
+        background: `linear-gradient(90deg, ${statusInfo.color}, ${statusInfo.color}80)`,
+        boxShadow: `0 0 8px ${statusInfo.color}40`
+      }} />
+      
+      <div style={{padding: '20px'}}>
+        {/* Заголовок и статус */}
+        <div className="row" style={{justifyContent:'space-between', marginBottom:16, alignItems:'flex-start'}}>
+          <div style={{flex: 1}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 8}}>
+              <h3 style={{margin:0, fontSize:'18px', fontWeight:'600', color:'var(--text)'}}>{obj.name}</h3>
+              <div style={{color: 'var(--muted)', fontSize: '14px'}}>
+                {obj.address}
+              </div>
+            </div>
+          </div>
+          <div style={{
+            padding:'4px 12px',
+            borderRadius:'20px',
+            background: `${statusInfo.color}15`,
+            color: statusInfo.color,
+            fontSize:'12px',
+            fontWeight:'600',
+            border: `1px solid ${statusInfo.color}30`
+          }}>
+            {statusInfo.label}
           </div>
         </div>
-        <div style={{
-          padding:'4px 8px', 
-          backgroundColor: statusInfo.bgColor, 
-          color: statusInfo.color, 
-          borderRadius:'6px', 
-          fontSize:'12px', 
-          fontWeight:'600',
-          border: `1px solid ${statusInfo.color}30`
-        }}>
-          {statusInfo.label}
-        </div>
-      </div>
-      <div className="row" style={{marginBottom:8}}>
-        <span>Прогресс</span><span style={{flex:1}}/><span className="muted">{(obj.work_progress ?? 0)}%</span>
-      </div>
-      <Progress value={obj.work_progress ?? 0} />
-      <div style={{marginTop:16, marginBottom:12}}>
-        <div className="row" style={{gap:8, justifyContent:'space-between'}}>
-          <div style={{flex:1, minWidth:0}}>
-            <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:2}}>ССК</div>
-            <div style={{fontSize:'13px'}}>{obj.ssk?.full_name || obj.ssk?.email || '—'}</div>
+
+        {/* Прогресс */}
+        <div style={{marginBottom: 20}}>
+          <div className="row" style={{marginBottom:8, alignItems:'center'}}>
+            <span style={{fontSize:'14px', fontWeight:'500', color:'var(--text)'}}>Прогресс работ</span>
+            <span style={{flex:1}}/>
+            <span style={{fontSize:'14px', fontWeight:'600', color: statusInfo.color}}>{(obj.work_progress ?? 0)}%</span>
           </div>
-          <div style={{flex:1, minWidth:0}}>
-            <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:2}}>ИКО</div>
-            <div style={{fontSize:'13px'}}>{obj.iko?.full_name || obj.iko?.email || '—'}</div>
-          </div>
-          <div style={{flex:1, minWidth:0}}>
-            <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:2}}>Прораб</div>
-            <div style={{fontSize:'13px'}}>{obj.foreman?.full_name || obj.foreman?.email || '—'}</div>
+          <div style={{
+            height: '8px',
+            background: 'var(--bg-secondary)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{
+              height: '100%',
+              width: `${obj.work_progress ?? 0}%`,
+              background: `linear-gradient(90deg, ${statusInfo.color}, ${statusInfo.color}80)`,
+              transition: 'width 0.3s ease'
+            }} />
           </div>
         </div>
+
+        {/* Роли */}
+        <div style={{marginBottom: 16}}>
+          <div className="row" style={{gap:12, justifyContent:'space-between'}}>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px'}}>ССК</div>
+              <div style={{
+                fontSize:'13px',
+                fontWeight: obj.ssk ? '500' : '400',
+                color: obj.ssk ? 'var(--text)' : 'var(--muted)'
+              }}>
+                {obj.ssk?.full_name || obj.ssk?.email || 'Не назначен'}
+              </div>
+            </div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px'}}>ИКО</div>
+              <div style={{
+                fontSize:'13px',
+                fontWeight: obj.iko ? '500' : '400',
+                color: obj.iko ? 'var(--text)' : 'var(--muted)'
+              }}>
+                {obj.iko?.full_name || obj.iko?.email || 'Не назначен'}
+              </div>
+            </div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px'}}>Прораб</div>
+              <div style={{
+                fontSize:'13px',
+                fontWeight: obj.foreman ? '500' : '400',
+                color: obj.foreman ? 'var(--text)' : 'var(--muted)'
+              }}>
+                {obj.foreman?.full_name || obj.foreman?.email || 'Не назначен'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Дополнительная информация */}
         {(obj.deliveries_today!=null || obj.visits) && (
-          <div className="row" style={{gap:8, marginTop:8, flexWrap:'wrap'}}>
-            {obj.deliveries_today!=null && <span className="pill">Поставки сегодня: {obj.deliveries_today}</span>}
-            {obj.visits && <span className="pill">Посещения: {obj.visits?.ssk ?? 0}/{obj.visits?.iko ?? 0}/{obj.visits?.foreman ?? 0}</span>}
+          <div style={{marginBottom: 16, paddingTop: 12, borderTop: '1px solid var(--border)'}}>
+            <div className="row" style={{gap:8, flexWrap:'wrap'}}>
+              {obj.deliveries_today!=null && (
+                <span style={{
+                  padding:'4px 8px',
+                  background:'var(--bg-secondary)',
+                  color:'var(--text)',
+                  borderRadius:'6px',
+                  fontSize:'11px',
+                  fontWeight:'500',
+                  border:'1px solid var(--border)'
+                }}>
+                  📦 Поставки сегодня: {obj.deliveries_today}
+                </span>
+              )}
+              {obj.visits && (
+                <span style={{
+                  padding:'4px 8px',
+                  background:'var(--bg-secondary)',
+                  color:'var(--text)',
+                  borderRadius:'6px',
+                  fontSize:'11px',
+                  fontWeight:'500',
+                  border:'1px solid var(--border)'
+                }}>
+                  👥 Посещения: {obj.visits?.ssk ?? 0}/{obj.visits?.iko ?? 0}/{obj.visits?.foreman ?? 0}
+                </span>
+              )}
+            </div>
           </div>
         )}
+
       </div>
-      <div className="row" style={{marginTop:10, justifyContent:'flex-end'}}>
-        <Link className="link" to={`/objects/${obj.id}`}>Открыть карточку →</Link>
-      </div>
-    </article>
+      </article>
+    </Link>
   )
 }
 
@@ -129,33 +226,186 @@ export default function Objects(){
 
   return (
     <div className="page">
-      <h1>Объекты</h1>
+      <div style={{marginBottom: '32px'}}>
+        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>Объекты</h1>
+        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
+          {user?.role === 'ssk' ? 'Управление объектами и назначение ответственных' : 'Просмотр назначенных объектов'}
+        </p>
+      </div>
+      
       {user?.role==='ssk' && (
-        <div className="row" style={{gap:16, alignItems:'center'}}>
-          <div className="row" style={{gap:8}}>
-            <button 
-              className={activeTab === 'assigned' ? 'btn' : 'btn ghost'} 
-              onClick={()=>setActiveTab('assigned')}
-            >
-              Мои объекты ({filteredSskObjects.assigned.length})
-            </button>
-            <button 
-              className={activeTab === 'available' ? 'btn' : 'btn ghost'} 
-              onClick={()=>setActiveTab('available')}
-            >
-              Доступные ({filteredSskObjects.available.length})
-            </button>
-          </div>
-          <div className="row" style={{gap:8}}>
-            <label className="muted" style={{width:160}}>Фильтр активации</label>
-            <select className="input" value={sskFilter} onChange={e=>setSskFilter(e.target.value)}>
-              <option value="all">Все</option>
-              <option value="draft">Черновик</option>
-              <option value="activation_pending">Ожидает активации</option>
-              <option value="active">Активен</option>
-              <option value="suspended">Приостановлен</option>
-              <option value="completed">Завершён</option>
-            </select>
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px',
+            flexWrap: 'wrap'
+          }}>
+            {/* Вкладки */}
+            <div style={{
+              display: 'flex',
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              padding: '2px',
+              border: '1px solid var(--border)',
+              width: 'fit-content'
+            }}>
+              <button 
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: activeTab === 'assigned' ? 'var(--brand)' : 'transparent',
+                  color: activeTab === 'assigned' ? 'white' : 'var(--text)',
+                  fontWeight: '500',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  minWidth: '120px',
+                  justifyContent: 'center'
+                }}
+                onClick={()=>setActiveTab('assigned')}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'assigned') {
+                    e.target.style.background = 'var(--bg)';
+                    e.target.style.color = 'var(--brand)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'assigned') {
+                    e.target.style.background = 'transparent';
+                    e.target.style.color = 'var(--text)';
+                  }
+                }}
+              >
+                Мои объекты
+                <span style={{
+                  background: activeTab === 'assigned' ? 'rgba(255,255,255,0.2)' : 'var(--brand)20',
+                  color: activeTab === 'assigned' ? 'white' : 'var(--brand)',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  minWidth: '18px',
+                  textAlign: 'center'
+                }}>
+                  {filteredSskObjects.assigned.length}
+                </span>
+              </button>
+              <button 
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: activeTab === 'available' ? 'var(--brand)' : 'transparent',
+                  color: activeTab === 'available' ? 'white' : 'var(--text)',
+                  fontWeight: '500',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  minWidth: '120px',
+                  justifyContent: 'center'
+                }}
+                onClick={()=>setActiveTab('available')}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'available') {
+                    e.target.style.background = 'var(--bg)';
+                    e.target.style.color = 'var(--brand)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'available') {
+                    e.target.style.background = 'transparent';
+                    e.target.style.color = 'var(--text)';
+                  }
+                }}
+              >
+                Доступные
+                <span style={{
+                  background: activeTab === 'available' ? 'rgba(255,255,255,0.2)' : 'var(--brand)20',
+                  color: activeTab === 'available' ? 'white' : 'var(--brand)',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  minWidth: '18px',
+                  textAlign: 'center'
+                }}>
+                  {filteredSskObjects.available.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Фильтр */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flex: 1,
+              minWidth: '300px'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: 'var(--text)',
+                fontWeight: '500',
+                fontSize: '13px',
+                whiteSpace: 'nowrap'
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+                </svg>
+                Статус:
+              </div>
+              <select 
+                className="input" 
+                value={sskFilter} 
+                onChange={e=>setSskFilter(e.target.value)}
+                style={{
+                  flex: 1,
+                  maxWidth: '180px',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  color: 'var(--text)',
+                  fontSize: '13px',
+                  fontWeight: '400'
+                }}
+              >
+                <option value="all">Все</option>
+                <option value="draft">Черновик</option>
+                <option value="activation_pending">Ожидает активации</option>
+                <option value="active">Активен</option>
+                <option value="suspended">Приостановлен</option>
+                <option value="completed">Завершён</option>
+              </select>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--muted)',
+                background: 'var(--bg-secondary)',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                border: '1px solid var(--border)',
+                whiteSpace: 'nowrap'
+              }}>
+                {activeTab === 'assigned' ? filteredSskObjects.assigned.length : filteredSskObjects.available.length} шт.
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -166,13 +416,75 @@ export default function Objects(){
               {activeTab === 'assigned' && filteredSskObjects.assigned.map(o => <ObjectCard key={o.id} obj={o} />)}
               {activeTab === 'available' && filteredSskObjects.available.map(o => <ObjectCard key={o.id} obj={o} />)}
               {activeTab === 'assigned' && filteredSskObjects.assigned.length === 0 && (
-                <div className="muted" style={{textAlign:'center', padding:'40px'}}>
-                  {sskFilter === 'all' ? 'У вас пока нет назначенных объектов' : 'Нет объектов с выбранным статусом активации'}
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  background: 'var(--panel)',
+                  borderRadius: '16px',
+                  border: '1px solid var(--border)',
+                  margin: '20px 0'
+                }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                      <polyline points="9,22 9,12 15,12 15,22"/>
+                    </svg>
+                  </div>
+                  <h3 style={{margin: '0 0 8px 0', color: 'var(--text)', fontSize: '18px', fontWeight: '600'}}>
+                    {sskFilter === 'all' ? 'Нет назначенных объектов' : 'Нет объектов с выбранным статусом'}
+                  </h3>
+                  <p style={{margin: 0, color: 'var(--muted)', fontSize: '14px'}}>
+                    {sskFilter === 'all' 
+                      ? 'Когда вам назначат объекты, они появятся здесь' 
+                      : 'Попробуйте изменить фильтр или выбрать другую вкладку'
+                    }
+                  </p>
                 </div>
               )}
               {activeTab === 'available' && filteredSskObjects.available.length === 0 && (
-                <div className="muted" style={{textAlign:'center', padding:'40px'}}>
-                  {sskFilter === 'all' ? 'Нет доступных объектов для назначения' : 'Нет доступных объектов с выбранным статусом активации'}
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  background: 'var(--panel)',
+                  borderRadius: '16px',
+                  border: '1px solid var(--border)',
+                  margin: '20px 0'
+                }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                      <polyline points="9,22 9,12 15,12 15,22"/>
+                    </svg>
+                  </div>
+                  <h3 style={{margin: '0 0 8px 0', color: 'var(--text)', fontSize: '18px', fontWeight: '600'}}>
+                    {sskFilter === 'all' ? 'Нет доступных объектов' : 'Нет доступных объектов с выбранным статусом'}
+                  </h3>
+                  <p style={{margin: 0, color: 'var(--muted)', fontSize: '14px'}}>
+                    {sskFilter === 'all' 
+                      ? 'Все объекты уже назначены или находятся в работе' 
+                      : 'Попробуйте изменить фильтр или выбрать другую вкладку'
+                    }
+                  </p>
                 </div>
               )}
             </div>
