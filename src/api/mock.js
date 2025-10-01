@@ -80,8 +80,39 @@ export async function searchUsers({ role, query } = {}){
 }
 
 // ===== Notifications =====
-export async function getNotifications(){ return await http('/notifications?mine=true') }
-export async function markNotificationRead(id){ return await http(`/notifications/${id}/read`, { method:'POST' }) }
+const NOTIFICATIONS_BASE = 'https://building-notifications.itc-hub.ru'
+
+async function notificationsHttp(path, { method='GET', headers={}, body, retry=true } = {}){
+  const url = path.startsWith('http') ? path : `${NOTIFICATIONS_BASE}${path}`
+  const tokens = getTokens()
+  const h = { 'Content-Type':'application/json', ...headers }
+  if (tokens.access) h['Authorization'] = `Bearer ${tokens.access}`
+  const ts = new Date().toISOString()
+  try{ console.log(`[notifications →]`, ts, method, url, body ? JSON.parse(body) : undefined) }catch{ console.log(`[notifications →]`, ts, method, url) }
+  const res = await fetch(url, { method, headers:h, body })
+  if (res.status === 401 && retry && tokens.refresh){
+    // try refresh
+    const rr = await fetch(`${BASE}/auth/refresh`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refresh: tokens.refresh }) })
+    if (rr.ok){
+      const data = await rr.json()
+      setTokens({ access: data.access, refresh: data.refresh || tokens.refresh })
+      console.log('[notifications ◇] token refreshed')
+      return notificationsHttp(path, { method, headers, body, retry:false })
+    }
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=>`HTTP ${res.status}`)
+    console.warn(`[notifications ←]`, method, url, res.status, txt)
+    throw new Error(txt || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type')||''
+  const out = ct.includes('application/json') ? await res.json() : await res.text()
+  try{ console.log(`[notifications ←]`, method, url, res.status, out) }catch{ console.log(`[notifications ←]`, method, url, res.status) }
+  return out
+}
+
+export async function getNotifications(userId){ return await notificationsHttp(`/notifications/${userId}`) }
+export async function markNotificationRead(id){ return await notificationsHttp(`/notifications/${id}/read`, { method:'PATCH' }) }
 
 // ===== Files / Documents / Exec docs =====
 export async function getFileTree({ object_id } = {}){

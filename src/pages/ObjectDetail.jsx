@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck } from '../api/mock.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation } from '../api/mock.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -39,6 +39,15 @@ export default function ObjectDetail(){
   const [activationModalOpen, setActivationModalOpen] = useState(false)
   const [checklistData, setChecklistData] = useState({})
   const [activationSaving, setActivationSaving] = useState(false)
+  const [violationModalOpen, setViolationModalOpen] = useState(false)
+  const [violationData, setViolationData] = useState({
+    title: '',
+    description: '',
+    requires_stop: false,
+    requires_personal_recheck: false,
+    attachments: []
+  })
+  const [violationSaving, setViolationSaving] = useState(false)
 
   const ChecklistItem = ({ id, text }) => (
     <div className="row" style={{gap:8, alignItems:'center', padding:'8px 12px', borderRadius:'6px', backgroundColor: checklistData[id] ? 'var(--bg-light)' : 'transparent', border: checklistData[id] ? '1px solid var(--border)' : '1px solid transparent'}}>
@@ -217,6 +226,7 @@ export default function ObjectDetail(){
                     }
                   }}>Активировать</button>
                 )}
+                <button className="btn small" onClick={()=>setViolationModalOpen(true)}>Выписать нарушение</button>
               </div>
             </div>
           )}
@@ -225,6 +235,11 @@ export default function ObjectDetail(){
               <div className="row" style={{gap:6}}>
                 <button className="btn small" onClick={()=>setActivationModalOpen(true)}>Активировать объект</button>
               </div>
+            </div>
+          )}
+          {(user?.role === 'ssk' || user?.role === 'iko') && (
+            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px', marginTop: 8}}>
+              <button className="btn" onClick={()=>setViolationModalOpen(true)}>Выписать нарушение</button>
             </div>
           )}
         </div>
@@ -565,6 +580,137 @@ export default function ObjectDetail(){
               </button>
             </div>
           </div>
+        </div>
+      </Modal>
+
+      {/* Модальное окно создания нарушения */}
+      <Modal open={violationModalOpen} onClose={()=>setViolationModalOpen(false)} style={{width:'90vw', maxWidth:'90vw', zIndex: 9999}}>
+        <div style={{padding: 20, maxHeight: '90vh', overflow: 'auto'}}>
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom: 20}}>
+            <h2>Выписать нарушение</h2>
+            <button onClick={()=>setViolationModalOpen(false)} style={{background:'none', border:'none', fontSize:'24px', cursor:'pointer'}}>✕</button>
+          </div>
+          
+          <form onSubmit={async(e)=>{
+            e.preventDefault()
+            if(!violationData.title.trim()) return alert('Заголовок обязателен')
+            setViolationSaving(true)
+            try{
+              await createViolation({
+                object: obj.id,
+                title: violationData.title,
+                description: violationData.description || undefined,
+                requires_stop: violationData.requires_stop,
+                requires_personal_recheck: violationData.requires_personal_recheck,
+                attachments: violationData.attachments
+              })
+              alert('Нарушение создано')
+              setViolationModalOpen(false)
+              setViolationData({
+                title: '',
+                description: '',
+                requires_stop: false,
+                requires_personal_recheck: false,
+                attachments: []
+              })
+            }catch(e){
+              alert('Ошибка создания нарушения: ' + (e?.message || ''))
+            }finally{
+              setViolationSaving(false)
+            }
+          }}>
+            <div style={{marginBottom: 16}}>
+              <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Заголовок *</label>
+              <input 
+                type="text" 
+                value={violationData.title}
+                onChange={e=>setViolationData(prev=>({...prev, title: e.target.value}))}
+                placeholder="Введите заголовок нарушения"
+                style={{width:'100%', padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)'}}
+                required
+              />
+            </div>
+
+            <div style={{marginBottom: 16}}>
+              <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Описание</label>
+              <textarea 
+                value={violationData.description}
+                onChange={e=>setViolationData(prev=>({...prev, description: e.target.value}))}
+                placeholder="Опишите нарушение"
+                rows={4}
+                style={{width:'100%', padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)', resize:'vertical'}}
+              />
+            </div>
+
+            <div style={{marginBottom: 16}}>
+              <label style={{display:'flex', alignItems:'center', gap: 8, cursor:'pointer'}}>
+                <input 
+                  type="checkbox" 
+                  checked={violationData.requires_stop}
+                  onChange={e=>setViolationData(prev=>({...prev, requires_stop: e.target.checked}))}
+                />
+                <span>Требуется остановка работ</span>
+              </label>
+            </div>
+
+            <div style={{marginBottom: 16}}>
+              <label style={{display:'flex', alignItems:'center', gap: 8, cursor:'pointer'}}>
+                <input 
+                  type="checkbox" 
+                  checked={violationData.requires_personal_recheck}
+                  onChange={e=>setViolationData(prev=>({...prev, requires_personal_recheck: e.target.checked}))}
+                />
+                <span>Требуется личная повторная проверка</span>
+              </label>
+            </div>
+
+            <div style={{marginBottom: 20}}>
+              <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Вложения (ссылки)</label>
+              <div style={{display:'flex', flexDirection:'column', gap: 8}}>
+                {violationData.attachments.map((attachment, index) => (
+                  <div key={index} className="row" style={{gap: 8}}>
+                    <input 
+                      type="url" 
+                      value={attachment}
+                      onChange={e=>{
+                        const newAttachments = [...violationData.attachments]
+                        newAttachments[index] = e.target.value
+                        setViolationData(prev=>({...prev, attachments: newAttachments}))
+                      }}
+                      placeholder="https://example.com/file.pdf"
+                      style={{flex:1, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)'}}
+                    />
+                    <button 
+                      type="button"
+                      onClick={()=>{
+                        const newAttachments = violationData.attachments.filter((_, i) => i !== index)
+                        setViolationData(prev=>({...prev, attachments: newAttachments}))
+                      }}
+                      style={{padding:'8px 12px', backgroundColor:'var(--red)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer'}}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))}
+                <button 
+                  type="button"
+                  onClick={()=>setViolationData(prev=>({...prev, attachments: [...prev.attachments, '']}))}
+                  style={{padding:'8px 12px', backgroundColor:'var(--brand)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', alignSelf:'flex-start'}}
+                >
+                  Добавить вложение
+                </button>
+              </div>
+            </div>
+
+            <div className="row" style={{gap: 12, justifyContent:'flex-end'}}>
+              <button type="button" onClick={()=>setViolationModalOpen(false)} className="btn ghost">
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={violationSaving || !violationData.title.trim()}>
+                {violationSaving ? 'Создаём...' : 'Создать нарушение'}
+              </button>
+            </div>
+          </form>
         </div>
       </Modal>
     </div>

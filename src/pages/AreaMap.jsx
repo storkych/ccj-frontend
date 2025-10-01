@@ -18,11 +18,13 @@ export default function AreaMap({
 
   useEffect(()=>{
     if (mapRef.current) return
-    const map = L.map(containerRef.current).setView(center, zoom)
+    const map = L.map(containerRef.current, {
+      attributionControl: false
+    }).setView(center, zoom)
     mapRef.current = { map }
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: ''
     }).addTo(map)
 
     const drawn = new L.FeatureGroup().addTo(map)
