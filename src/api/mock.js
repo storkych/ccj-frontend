@@ -154,14 +154,15 @@ export async function getVisits(params = {}){
 }
 export async function getPlannedVisits(objectId){ return await visitsHttp(`/api/v1/sessions/planned/${objectId}`) }
 
+// ===== Memos =====
+export async function getMemos(){ return await http('/memos') }
+
 // ===== Files / Documents / Exec docs =====
 export async function getFileTree({ object_id } = {}){
   const qs = new URLSearchParams()
   if (object_id) qs.set('object_id', object_id)
   return await http(`/documents?${qs.toString()}`)
 }
-export async function getMemos(){ return await http('/memos') }
-
 // ===== Tickets =====
 export async function getTickets({ status } = {}){
   const qs = new URLSearchParams()

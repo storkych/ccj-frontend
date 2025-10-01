@@ -32,7 +32,6 @@ function Layout({ children }){
     { to:'/profile', label:'Профиль' },
     { to:'/memos', label:'Памятки' },
     { to:'/ai', label:'ИИ чат' },
-    { to:'/qr', label:'QR код' },
     { to:'/tickets', label:'Тикеты' },
     { to:'/work-schedule', label:'График работ' },
   ]
@@ -105,7 +104,6 @@ function Protected({ children }){
     { to:'/profile', label:'Профиль' },
     { to:'/memos', label:'Памятки' },
     { to:'/ai', label:'ИИ чат' },
-    { to:'/qr', label:'QR код' },
     { to:'/tickets', label:'Тикеты' },
     { to:'/work-schedule', label:'График работ' },
   ]

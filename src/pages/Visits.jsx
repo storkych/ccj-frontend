@@ -22,7 +22,7 @@ export default function Visits(){
       try {
         const [visitsRes, objectsRes] = await Promise.all([
           getVisits({ user_id: user?.id, object_id: objectId||undefined }),
-          getObjects()
+          getObjects({ mine: user?.role === 'ssk' ? undefined : true })
         ])
         setItems(visitsRes.sessions || [])
         setObjects(objectsRes.items || [])
@@ -134,21 +134,22 @@ export default function Visits(){
       {/* Модальное окно создания посещения */}
       {createModalOpen && (
         <div className="modal-backdrop" onClick={() => setCreateModalOpen(false)} style={{zIndex: 9998}}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{width: '90vw', maxWidth: '90vw', zIndex: 9999}}>
-            <div style={{padding: 20}}>
-              <div className="row" style={{justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-                <h2>Создать посещение</h2>
-                <button onClick={() => setCreateModalOpen(false)} style={{background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer'}}>✕</button>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{width: '500px', maxWidth: '90vw', zIndex: 9999}}>
+            <div style={{padding: 16}}>
+              <div className="row" style={{justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+                <h2 style={{margin: 0, fontSize: '20px'}}>Создать посещение</h2>
+                <button onClick={() => setCreateModalOpen(false)} style={{background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)'}}>✕</button>
               </div>
               
               <form onSubmit={handleCreateVisit}>
-                <div style={{marginBottom: 16}}>
-                  <label style={{display: 'block', marginBottom: 8, fontWeight: 600}}>Объект *</label>
+                <div style={{marginBottom: 12}}>
+                  <label style={{display: 'block', marginBottom: 4, fontWeight: 600, fontSize: '14px'}}>Объект *</label>
                   <select 
                     className="input" 
                     value={visitData.object_id} 
                     onChange={e => setVisitData(prev => ({...prev, object_id: e.target.value}))}
                     required
+                    style={{width: '100%', padding: '8px 12px'}}
                   >
                     <option value="">Выберите объект</option>
                     {objects.map(obj => (
@@ -159,23 +160,24 @@ export default function Visits(){
                   </select>
                 </div>
 
-                <div style={{marginBottom: 20}}>
-                  <label style={{display: 'block', marginBottom: 8, fontWeight: 600}}>Дата посещения *</label>
+                <div style={{marginBottom: 16}}>
+                  <label style={{display: 'block', marginBottom: 4, fontWeight: 600, fontSize: '14px'}}>Дата посещения *</label>
                   <input 
                     type="date" 
                     className="input" 
                     value={visitData.visit_date} 
                     onChange={e => setVisitData(prev => ({...prev, visit_date: e.target.value}))}
                     required
+                    style={{width: '100%', padding: '8px 12px'}}
                   />
                 </div>
 
-                <div className="row" style={{gap: 12, justifyContent: 'flex-end'}}>
+                <div className="row" style={{gap: 8, justifyContent: 'flex-end'}}>
                   <button type="button" onClick={() => setCreateModalOpen(false)} className="btn ghost">
                     Отмена
                   </button>
                   <button type="submit" className="btn" disabled={saving || !visitData.object_id || !visitData.visit_date}>
-                    {saving ? 'Создаём...' : 'Создать посещение'}
+                    {saving ? 'Создаём...' : 'Создать'}
                   </button>
                 </div>
               </form>
