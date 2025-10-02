@@ -1,0 +1,431 @@
+import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { getDeliveries, sendDeliveryToLab, acceptDelivery } from '../api/deliveries.js'
+import { getObjects } from '../api/api.js'
+
+export default function DeliveriesSSK() {
+  const [activeTab, setActiveTab] = useState('current')
+  const [deliveries, setDeliveries] = useState([])
+  const [objects, setObjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(null)
+  const [selectedObject, setSelectedObject] = useState('')
+
+  useEffect(() => {
+    loadData()
+  }, [activeTab, selectedObject])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      
+      // Загружаем объекты для фильтра
+      const objectsData = await getObjects()
+      setObjects(objectsData.items || [])
+      
+      // Загружаем поставки в зависимости от активной вкладки
+      const params = {}
+      if (activeTab === 'current') {
+        params.status = 'delivered,in_lab'
+      }
+      if (selectedObject) {
+        params.object_id = selectedObject
+      }
+      
+      const deliveriesData = await getDeliveries(params)
+      setDeliveries(deliveriesData.items || [])
+    } catch (error) {
+      console.error('Ошибка загрузки данных:', error)
+      alert('Ошибка загрузки данных')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendToLab = async (deliveryId) => {
+    if (!confirm('Отправить поставку в лабораторию?')) return
+
+    try {
+      setActionLoading(deliveryId)
+      await sendDeliveryToLab(deliveryId)
+      alert('Поставка отправлена в лабораторию')
+      loadData()
+    } catch (error) {
+      console.error('Ошибка отправки в лабораторию:', error)
+      alert('Ошибка при отправке в лабораторию')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleAcceptDelivery = async (deliveryId) => {
+    if (!confirm('Принять поставку?')) return
+
+    try {
+      setActionLoading(deliveryId)
+      await acceptDelivery(deliveryId)
+      alert('Поставка принята')
+      loadData()
+    } catch (error) {
+      console.error('Ошибка принятия поставки:', error)
+      alert('Ошибка при принятии поставки')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'scheduled':
+        return { label: 'Запланировано', color: '#6b7280' }
+      case 'pending':
+        return { label: 'Ожидает', color: '#f59e0b' }
+      case 'in_transit':
+        return { label: 'В пути', color: '#3b82f6' }
+      case 'delivered':
+        return { label: 'Доставлено', color: '#10b981' }
+      case 'received':
+        return { label: 'Принято прорабом', color: '#059669' }
+      case 'in_lab':
+        return { label: 'В лаборатории', color: '#8b5cf6' }
+      case 'accepted':
+        return { label: 'Принято ССК', color: '#16a34a' }
+      case 'rejected':
+        return { label: 'Отклонено', color: '#ef4444' }
+      default:
+        return { label: status, color: '#6b7280' }
+    }
+  }
+
+  return (
+    <div className="page">
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px'
+        }}>
+          <h1 style={{
+            margin: 0,
+            fontSize: '28px',
+            fontWeight: '700',
+            color: 'var(--text)'
+          }}>
+            📦 Поставки (ССК)
+          </h1>
+
+          {/* Фильтр по объекту */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <select
+              value={selectedObject}
+              onChange={(e) => setSelectedObject(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                fontSize: '14px'
+              }}
+            >
+              <option value="">Все объекты</option>
+              {objects.map(obj => (
+                <option key={obj.id} value={obj.id}>
+                  {obj.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Табы */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: '20px'
+        }}>
+          <button
+            onClick={() => setActiveTab('current')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'transparent',
+              color: activeTab === 'current' ? 'var(--brand)' : 'var(--muted)',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'current' ? '2px solid var(--brand)' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🔄 Актуальные поставки
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'transparent',
+              color: activeTab === 'history' ? 'var(--brand)' : 'var(--muted)',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'history' ? '2px solid var(--brand)' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            📚 История поставок
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '200px'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '4px solid var(--border)',
+              borderTop: '4px solid var(--brand)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+          </div>
+        ) : deliveries.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px',
+            color: 'var(--muted)'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <div style={{ fontSize: '18px', marginBottom: '8px' }}>
+              {activeTab === 'current' ? 'Нет актуальных поставок' : 'История поставок пуста'}
+            </div>
+            <div style={{ fontSize: '14px' }}>
+              {activeTab === 'current' ? 
+                'Актуальные поставки появятся здесь когда будут доставлены' : 
+                'История поставок будет отображаться здесь'
+              }
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gap: '16px'
+          }}>
+            {deliveries.map(delivery => {
+              const statusInfo = getStatusInfo(delivery.status)
+              const canSendToLab = delivery.status === 'delivered'
+              const canAccept = delivery.status === 'in_lab' || delivery.status === 'delivered'
+              const isLoading = actionLoading === delivery.id
+              
+              return (
+                <div
+                  key={delivery.id}
+                  style={{
+                    background: 'var(--bg-light)',
+                    border: '1px solid var(--border)',
+                    borderLeft: `4px solid ${statusInfo.color}`,
+                    borderRadius: '12px',
+                    padding: '20px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '12px'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          background: `${statusInfo.color}15`,
+                          color: statusInfo.color,
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          border: `1px solid ${statusInfo.color}30`
+                        }}>
+                          {statusInfo.label}
+                        </div>
+                        
+                        {delivery.object && (
+                          <div style={{
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            background: 'var(--brand)15',
+                            color: 'var(--brand)',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            border: '1px solid var(--brand)30'
+                          }}>
+                            📍 {delivery.object.name}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <Link
+                        to={`/deliveries/${delivery.id}`}
+                        style={{
+                          textDecoration: 'none',
+                          color: 'inherit'
+                        }}
+                      >
+                        <h3 style={{
+                          margin: '0 0 8px 0',
+                          fontSize: '18px',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          cursor: 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.color = 'var(--brand)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.color = 'var(--text)'
+                        }}>
+                          {delivery.title || `Поставка #${delivery.id}`}
+                        </h3>
+                      </Link>
+                      
+                      {delivery.description && (
+                        <p style={{
+                          margin: '0 0 12px 0',
+                          color: 'var(--text)',
+                          fontSize: '14px',
+                          lineHeight: '1.4'
+                        }}>
+                          {delivery.description.length > 150 ? 
+                            `${delivery.description.substring(0, 150)}...` : 
+                            delivery.description
+                          }
+                        </p>
+                      )}
+
+                      <div style={{
+                        display: 'flex',
+                        gap: '16px',
+                        fontSize: '13px',
+                        color: 'var(--muted)',
+                        alignItems: 'center'
+                      }}>
+                        {delivery.expected_date && (
+                          <span>📅 Ожидается: {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}</span>
+                        )}
+                        {delivery.supplier && (
+                          <span>🏢 {delivery.supplier}</span>
+                        )}
+                        {delivery.items_count && (
+                          <span>📦 Позиций: {delivery.items_count}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Кнопки действий для актуальных поставок */}
+                    {activeTab === 'current' && (canSendToLab || canAccept) && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        marginLeft: '16px'
+                      }}>
+                        {canSendToLab && (
+                          <button
+                            onClick={() => handleSendToLab(delivery.id)}
+                            disabled={isLoading}
+                            style={{
+                              padding: '8px 16px',
+                              background: '#8b5cf6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: isLoading ? 'not-allowed' : 'pointer',
+                              opacity: isLoading ? 0.7 : 1,
+                              transition: 'all 0.2s ease',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isLoading) {
+                                e.target.style.background = '#7c3aed'
+                                e.target.style.transform = 'translateY(-1px)'
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isLoading) {
+                                e.target.style.background = '#8b5cf6'
+                                e.target.style.transform = 'translateY(0)'
+                              }
+                            }}
+                          >
+                            🧪 В лабораторию
+                          </button>
+                        )}
+                        
+                        {canAccept && (
+                          <button
+                            onClick={() => handleAcceptDelivery(delivery.id)}
+                            disabled={isLoading}
+                            style={{
+                              padding: '8px 16px',
+                              background: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: isLoading ? 'not-allowed' : 'pointer',
+                              opacity: isLoading ? 0.7 : 1,
+                              transition: 'all 0.2s ease',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isLoading) {
+                                e.target.style.background = '#059669'
+                                e.target.style.transform = 'translateY(-1px)'
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isLoading) {
+                                e.target.style.background = '#10b981'
+                                e.target.style.transform = 'translateY(0)'
+                              }
+                            }}
+                          >
+                            ✅ Принять
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

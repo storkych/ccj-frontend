@@ -279,8 +279,12 @@ export async function createViolation(payload){
 export async function createViolationWithPhotos(payload) {
   return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) })
 }
-export async function submitViolationReport({ id, text, photos_folder_url, attachments }){
-  const body = { comment: text, attachments: attachments || (photos_folder_url ? [photos_folder_url] : []) }
+export async function submitViolationReport({ id, text, photos_folder_url, attachments, fix_photos }){
+  const body = { 
+    comment: text, 
+    attachments: attachments || (photos_folder_url ? [photos_folder_url] : []),
+    fix_photos: fix_photos || []
+  }
   return await http(`/prescriptions/${id}/fix`, { method:'POST', body: JSON.stringify(body) })
 }
 export async function reviewViolation({ id, decision, comment }){

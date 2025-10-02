@@ -17,6 +17,9 @@ import QRPage from './pages/QRPage.jsx'
 import Tickets from './pages/Tickets.jsx'
 import WorkSchedule from './pages/WorkSchedule.jsx'
 import Deliveries from './pages/Deliveries.jsx'
+import DeliveryDetail from './pages/DeliveryDetail.jsx'
+import DeliveryMaterials from './pages/DeliveryMaterials.jsx'
+import DeliveriesSSK from './pages/DeliveriesSSK.jsx'
 import Violations from './pages/Violations.jsx'
 import Visits from './pages/Visits.jsx'
 import SSKChecklists from './pages/SSKChecklists.jsx'
@@ -62,7 +65,7 @@ function Layout({ children }){
     ssk: [
       { to:'/ssk/checklists', label:'Ежедневные чек-листы прорабов', icon: 'analytics' },
       { to:'/violations', label:'Нарушения', icon: 'violations' },
-      { to:'/deliveries', label:'Поставки', icon: 'deliveries' },
+      { to:'/deliveries-ssk', label:'Поставки', icon: 'deliveries' },
       { to:'/visits', label:'Посещения', icon: 'visits' },
     ],
     iko: [
@@ -219,7 +222,7 @@ function Protected({ children }){
     ssk: [
       { to:'/ssk/checklists', label:'Ежедневные чек-листы прорабов', icon: 'analytics' },
       { to:'/violations', label:'Нарушения', icon: 'violations' },
-      { to:'/deliveries', label:'Поставки', icon: 'deliveries' },
+      { to:'/deliveries-ssk', label:'Поставки', icon: 'deliveries' },
       { to:'/visits', label:'Посещения', icon: 'visits' },
     ],
     iko: [
@@ -263,6 +266,9 @@ export default function App(){
         <Route path="/tickets" element={<Protected><Layout><Tickets/></Layout></Protected>} />
         <Route path="/work-schedule" element={<Protected><Layout><WorkSchedule/></Layout></Protected>} />
         <Route path="/deliveries" element={<Protected><RoleProtected roles={["foreman","ssk"]}><Layout><Deliveries/></Layout></RoleProtected></Protected>} />
+        <Route path="/deliveries/:id" element={<Protected><RoleProtected roles={["foreman","ssk"]}><Layout><DeliveryDetail/></Layout></RoleProtected></Protected>} />
+        <Route path="/deliveries/:id/materials" element={<Protected><RoleProtected roles={["foreman"]}><Layout><DeliveryMaterials/></Layout></RoleProtected></Protected>} />
+        <Route path="/deliveries-ssk" element={<Protected><RoleProtected roles={["ssk"]}><Layout><DeliveriesSSK/></Layout></RoleProtected></Protected>} />
         <Route path="/violations" element={<Protected><RoleProtected roles={["foreman","ssk","iko"]}><Layout><Violations/></Layout></RoleProtected></Protected>} />
         <Route path="/visits" element={<Protected><RoleProtected roles={["ssk","iko"]}><Layout><Visits/></Layout></RoleProtected></Protected>} />
         <Route path="/ssk/checklists" element={<Protected><RoleProtected roles={["ssk"]}><Layout><SSKChecklists/></Layout></RoleProtected></Protected>} />

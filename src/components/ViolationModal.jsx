@@ -23,6 +23,8 @@ export default function ViolationModal({
 }) {
   const [reportText, setReportText] = useState('')
   const [reportFiles, setReportFiles] = useState([])
+  const [reportPhotos, setReportPhotos] = useState([])
+  const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [submittingReport, setSubmittingReport] = useState(false)
   const [reviewComment, setReviewComment] = useState('')
   const [reviewing, setReviewing] = useState(false)
@@ -34,21 +36,59 @@ export default function ViolationModal({
   const canReviewReport = (user?.role === 'ssk' || user?.role === 'iko') && (violation.status === 'fixed' || violation.status === 'awaiting_verification') && isAuthor
   const cannotReviewReason = (user?.role === 'ssk' || user?.role === 'iko') && (violation.status === 'fixed' || violation.status === 'awaiting_verification') && !isAuthor
 
+  const handlePhotoUpload = (event) => {
+    const files = Array.from(event.target.files)
+    if (files.length === 0) return
+
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          setReportPhotos(prev => [...prev, {
+            file: file,
+            preview: e.target.result,
+            name: file.name
+          }])
+        }
+        reader.readAsDataURL(file)
+      }
+    })
+  }
+
+  const removePhoto = (index) => {
+    setReportPhotos(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmitReport = async () => {
     if (!reportText.trim()) return
     
     setSubmittingReport(true)
     try {
-      const result = await submitViolationReport({
-        id: violation.id,
-        text: reportText,
-        attachments: reportFiles
-      })
+       // Конвертируем фотографии в base64
+       const photoAttachments = await Promise.all(
+         reportPhotos.map(photo => {
+           return new Promise((resolve) => {
+             const reader = new FileReader()
+             reader.onload = (e) => {
+               resolve(e.target.result) // это уже base64 строка с data:image/...
+             }
+             reader.readAsDataURL(photo.file)
+           })
+         })
+       )
+       
+       const result = await submitViolationReport({
+         id: violation.id,
+         text: reportText,
+         attachments: reportFiles, // обычные файлы
+         fix_photos: photoAttachments // фотографии отдельно в base64
+       })
       
       console.log('Отчёт успешно отправлен:', result)
       
       setReportText('')
       setReportFiles([])
+      setReportPhotos([])
       onClose()
       
       // Обновляем данные после закрытия модального окна
@@ -395,9 +435,126 @@ export default function ViolationModal({
                   fontSize: '14px',
                   fontFamily: 'inherit',
                   resize: 'vertical',
-                  marginBottom: '12px'
+                  marginBottom: '16px'
                 }}
               />
+
+              {/* Блок для загрузки фотографий */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{
+                  fontSize: '14px',
+                  color: 'var(--text)',
+                  fontWeight: '500',
+                  marginBottom: '8px'
+                }}>
+                  📸 Фотографии исправления
+                </div>
+                
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  style={{ display: 'none' }}
+                  id="photo-upload"
+                />
+                
+                <label
+                  htmlFor="photo-upload"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: 'var(--text)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'var(--border)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'var(--bg-secondary)'
+                  }}
+                >
+                  📷 Добавить фото
+                </label>
+
+                {/* Превью загруженных фотографий */}
+                {reportPhotos.length > 0 && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    gap: '8px',
+                    marginTop: '12px'
+                  }}>
+                    {reportPhotos.map((photo, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          position: 'relative',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border)'
+                        }}
+                      >
+                        <img
+                          src={photo.preview}
+                          alt={`Фото ${index + 1}`}
+                          style={{
+                            width: '100%',
+                            height: '80px',
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                        />
+                        <button
+                          onClick={() => removePhoto(index)}
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            background: 'rgba(0,0,0,0.7)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          ✕
+                        </button>
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '2px',
+                          left: '2px',
+                          right: '2px',
+                          background: 'rgba(0,0,0,0.7)',
+                          color: 'white',
+                          fontSize: '10px',
+                          padding: '2px 4px',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {photo.name}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               
               <div style={{
                 display: 'flex',
@@ -419,7 +576,7 @@ export default function ViolationModal({
                     boxShadow: 'none'
                   }}
                 >
-                  {submittingReport ? 'Отправляем...' : 'Отправить отчёт'}
+                  {submittingReport ? 'Отправляем...' : `Отправить отчёт${reportPhotos.length > 0 ? ` (${reportPhotos.length} фото)` : ''}`}
                 </button>
               </div>
             </div>
@@ -488,7 +645,7 @@ export default function ViolationModal({
                 Прораб отправил отчёт об исправлении нарушения. Проверьте качество исправления и примите решение.
               </div>
               
-              {(violation.fix_report || violation.fix_comment || violation.comment) && (
+              {((violation.fixes && violation.fixes.length > 0 && violation.fixes[0].comment) || violation.fix_report || violation.fix_comment || violation.comment) && (
                 <div style={{
                   background: 'var(--bg-secondary)',
                   border: '1px solid var(--border)',
@@ -508,17 +665,26 @@ export default function ViolationModal({
                     color: 'var(--text)',
                     lineHeight: '1.4'
                   }}>
-                    {violation.fix_report || violation.fix_comment || violation.comment}
+                    {violation.fixes && violation.fixes.length > 0 ? violation.fixes[0].comment : (violation.fix_report || violation.fix_comment || violation.comment)}
                   </div>
-                  {violation.fixed_at && (
+                  {(violation.fixes && violation.fixes.length > 0 && violation.fixes[0].created_at) || violation.fixed_at ? (
                     <div style={{
                       fontSize: '12px',
                       color: 'var(--muted)',
                       marginTop: '8px'
                     }}>
-                      Исправлено: {new Date(violation.fixed_at).toLocaleDateString('ru-RU')} в {new Date(violation.fixed_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
+                      📅 {violation.fixes && violation.fixes.length > 0 && violation.fixes[0].created_at ? 
+                        new Date(violation.fixes[0].created_at).toLocaleDateString('ru-RU', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 
+                        `Исправлено: ${new Date(violation.fixed_at).toLocaleDateString('ru-RU')} в ${new Date(violation.fixed_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}`
+                      }
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
               
@@ -572,87 +738,182 @@ export default function ViolationModal({
             flexDirection: 'column',
             gap: '24px'
           }}>
-            {/* Фотографии нарушения */}
-            {violation.violation_photos_folder_url && violation.violation_photos_folder_url.length > 0 && (
-              <div>
-                <div style={{
-                  fontSize: '18px',
-                  color: 'var(--text)',
-                  fontWeight: '600',
-                  marginBottom: '16px'
-                }}>
-                  📸 Фотографии нарушения
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                  gap: '12px'
-                }}>
-                  {violation.violation_photos_folder_url.map((photo, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        position: 'relative',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onClick={() => window.open(photo, '_blank')}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.02)'
-                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)'
-                        e.currentTarget.style.boxShadow = 'none'
-                      }}
-                    >
-                      <img
-                        src={photo}
-                        alt={`Фото нарушения ${index + 1}`}
-                        style={{
-                          width: '100%',
-                          height: '120px',
-                          objectFit: 'cover',
-                          display: 'block'
-                        }}
-                        onError={(e) => {
-                          e.target.style.display = 'none'
-                          e.target.parentElement.innerHTML = `
-                            <div style="
-                              display: flex;
-                              align-items: center;
-                              justify-content: center;
-                              height: 120px;
-                              color: var(--muted);
-                              font-size: 14px;
-                            ">
-                              📷 Фото недоступно
-                            </div>
-                          `
-                        }}
-                      />
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '8px',
-                        right: '8px',
-                        background: 'rgba(0,0,0,0.7)',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500'
-                      }}>
-                        {index + 1}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+             {/* Фотографии нарушения */}
+             {violation.violation_photos_folder_url && violation.violation_photos_folder_url.length > 0 && (
+               <div>
+                 <div style={{
+                   fontSize: '18px',
+                   color: 'var(--text)',
+                   fontWeight: '600',
+                   marginBottom: '16px'
+                 }}>
+                   📸 Фотографии нарушения
+                 </div>
+                 <div style={{
+                   display: 'grid',
+                   gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                   gap: '12px'
+                 }}>
+                   {violation.violation_photos_folder_url.map((photo, index) => (
+                     <div
+                       key={index}
+                       style={{
+                         position: 'relative',
+                         borderRadius: '12px',
+                         overflow: 'hidden',
+                         background: 'var(--bg-secondary)',
+                         border: '1px solid var(--border)',
+                         cursor: 'pointer',
+                         transition: 'all 0.2s ease'
+                       }}
+                       onClick={() => window.open(photo, '_blank')}
+                       onMouseEnter={(e) => {
+                         e.currentTarget.style.transform = 'scale(1.02)'
+                         e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'
+                       }}
+                       onMouseLeave={(e) => {
+                         e.currentTarget.style.transform = 'scale(1)'
+                         e.currentTarget.style.boxShadow = 'none'
+                       }}
+                     >
+                       <img
+                         src={photo}
+                         alt={`Фото нарушения ${index + 1}`}
+                         style={{
+                           width: '100%',
+                           height: '120px',
+                           objectFit: 'cover',
+                           display: 'block'
+                         }}
+                         onError={(e) => {
+                           e.target.style.display = 'none'
+                           e.target.parentElement.innerHTML = `
+                             <div style="
+                               display: flex;
+                               align-items: center;
+                               justify-content: center;
+                               height: 120px;
+                               color: var(--muted);
+                               font-size: 14px;
+                             ">
+                               📷 Фото недоступно
+                             </div>
+                           `
+                         }}
+                       />
+                       <div style={{
+                         position: 'absolute',
+                         bottom: '8px',
+                         right: '8px',
+                         background: 'rgba(0,0,0,0.7)',
+                         color: 'white',
+                         padding: '4px 8px',
+                         borderRadius: '6px',
+                         fontSize: '12px',
+                         fontWeight: '500'
+                       }}>
+                         {index + 1}
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
+
+             {/* Фотографии исправления от прораба */}
+             {violation.fixes && violation.fixes.length > 0 && violation.fixes[0].fix_photos_folder_url && violation.fixes[0].fix_photos_folder_url.length > 0 && (
+               <div>
+                 <div style={{
+                   fontSize: '18px',
+                   color: 'var(--text)',
+                   fontWeight: '600',
+                   marginBottom: '16px'
+                 }}>
+                   🔧 Фотографии исправления
+                 </div>
+                 <div style={{
+                   display: 'grid',
+                   gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                   gap: '12px'
+                 }}>
+                   {violation.fixes[0].fix_photos_folder_url.map((photo, index) => (
+                     <div
+                       key={index}
+                       style={{
+                         position: 'relative',
+                         borderRadius: '12px',
+                         overflow: 'hidden',
+                         background: 'var(--bg-secondary)',
+                         border: '2px solid #10b981',
+                         cursor: 'pointer',
+                         transition: 'all 0.2s ease'
+                       }}
+                       onClick={() => window.open(photo, '_blank')}
+                       onMouseEnter={(e) => {
+                         e.currentTarget.style.transform = 'scale(1.02)'
+                         e.currentTarget.style.boxShadow = '0 8px 24px rgba(16,185,129,0.25)'
+                       }}
+                       onMouseLeave={(e) => {
+                         e.currentTarget.style.transform = 'scale(1)'
+                         e.currentTarget.style.boxShadow = 'none'
+                       }}
+                     >
+                       <img
+                         src={photo}
+                         alt={`Фото исправления ${index + 1}`}
+                         style={{
+                           width: '100%',
+                           height: '120px',
+                           objectFit: 'cover',
+                           display: 'block'
+                         }}
+                         onError={(e) => {
+                           e.target.style.display = 'none'
+                           e.target.parentElement.innerHTML = `
+                             <div style="
+                               display: flex;
+                               align-items: center;
+                               justify-content: center;
+                               height: 120px;
+                               color: var(--muted);
+                               font-size: 14px;
+                             ">
+                               🔧 Фото недоступно
+                             </div>
+                           `
+                         }}
+                       />
+                       <div style={{
+                         position: 'absolute',
+                         bottom: '8px',
+                         right: '8px',
+                         background: 'rgba(16,185,129,0.9)',
+                         color: 'white',
+                         padding: '4px 8px',
+                         borderRadius: '6px',
+                         fontSize: '12px',
+                         fontWeight: '500'
+                       }}>
+                         {index + 1}
+                       </div>
+                       <div style={{
+                         position: 'absolute',
+                         top: '8px',
+                         left: '8px',
+                         background: 'rgba(16,185,129,0.9)',
+                         color: 'white',
+                         padding: '2px 6px',
+                         borderRadius: '4px',
+                         fontSize: '10px',
+                         fontWeight: '600'
+                       }}>
+                         🔧 ИСПРАВЛЕНО
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
 
             {/* Метаданные */}
             <div style={{
