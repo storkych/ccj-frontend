@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO } from '../api/api.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO, getViolations } from '../api/api.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
+import ViolationModal from '../components/ViolationModal.jsx'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
@@ -49,6 +50,10 @@ export default function ObjectDetail(){
   })
   const [violationPhotos, setViolationPhotos] = useState([])
   const [violationSaving, setViolationSaving] = useState(false)
+  const [violations, setViolations] = useState([])
+  const [violationsLoading, setViolationsLoading] = useState(false)
+  const [selectedViolation, setSelectedViolation] = useState(null)
+  const [violationDetailModalOpen, setViolationDetailModalOpen] = useState(false)
 
   const ChecklistItem = ({ id, text }) => (
     <div className="row" style={{gap:8, alignItems:'center', padding:'8px 12px', borderRadius:'6px', backgroundColor: checklistData[id] ? 'var(--bg-light)' : 'transparent', border: checklistData[id] ? '1px solid var(--border)' : '1px solid transparent'}}>
@@ -97,6 +102,19 @@ export default function ObjectDetail(){
       setWorkPlans([])
       setWorkPlanDetails(null)
     }).finally(()=>setWorkPlansLoading(false))
+  }, [obj])
+
+  // Загрузка нарушений для объекта
+  useEffect(()=>{
+    if(!obj) return
+    setViolationsLoading(true)
+    getViolations({ object_id: obj.id }).then(res=>{
+      console.log('[ui object-detail] violations loaded', res)
+      setViolations(res.items || [])
+    }).catch(e=>{
+      console.warn('[ui object-detail] violations error', e)
+      setViolations([])
+    }).finally(()=>setViolationsLoading(false))
   }, [obj])
 
   const openAssign = async () => {
@@ -182,6 +200,27 @@ export default function ObjectDetail(){
     return statusMap[status] || { label: status || '—', color: '#6b7280', bgColor: '#f9fafb' }
   }
 
+  function getViolationStatusInfo(status) {
+    const statusMap = {
+      'open': { label: 'Открыто', color: '#ef4444' },
+      'fixed': { label: 'Исправлено', color: '#f59e0b' },
+      'awaiting_verification': { label: 'Ожидает проверки', color: '#f59e0b' },
+      'verified': { label: 'Проверено', color: '#10b981' },
+      'closed': { label: 'Закрыто', color: '#6b7280' }
+    }
+    return statusMap[status] || { label: status, color: '#6b7280' }
+  }
+
+  const openViolationDetailModal = (violation) => {
+    setSelectedViolation(violation)
+    setViolationDetailModalOpen(true)
+  }
+
+  const closeViolationDetailModal = () => {
+    setSelectedViolation(null)
+    setViolationDetailModalOpen(false)
+  }
+
   const statusInfo = getStatusInfo(obj?.status)
 
   return (
@@ -232,284 +271,244 @@ export default function ObjectDetail(){
         </div>
 
         {/* Панель действий */}
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          flexWrap: 'wrap',
-          marginBottom: '24px'
-        }}>
-          {/* Действия ССК */}
-          {user?.role === 'ssk' && (!obj.ssk || !obj.foreman || workPlans.length === 0 || (obj.areas?.length||0) === 0 || (obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko)) && (
+        {(user?.role === 'ssk' || user?.role === 'iko') && (
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '16px',
+            marginBottom: '24px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+          }}>
             <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-              minWidth: '200px'
+              display: 'flex',
+              alignItems: 'center',
+              gap: '20px',
+              flexWrap: 'wrap'
             }}>
+              {/* Заголовок */}
               <div style={{
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
+                alignItems: 'center',
+                gap: '8px',
+                color: 'var(--text)',
+                fontWeight: '600',
+                fontSize: '14px',
+                whiteSpace: 'nowrap'
               }}>
-                <h4 style={{
-                  margin: '0 0 8px 0',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: 'var(--text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                  Действия ССК
-                </h4>
-                <div style={{
-                  display: 'flex',
-                  gap: '6px',
-                  flexWrap: 'wrap'
-                }}>
-                {!obj.ssk && (
-                  <button 
-                    className="btn small" 
-                    onClick={async()=>{ 
-                      try{
-                        const u = await patchObject(obj.id, { ssk_id: user.id }); 
-                        setObj(u);
-                        alert('Вы стали ответственным за объект')
-                      }catch(e){
-                        alert('Ошибка: ' + (e?.message || ''))
-                      }
-                    }}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Стать ответственным
-                  </button>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                Действия {user?.role === 'ssk' ? 'ССК' : 'ИКО'}:
+              </div>
+
+              {/* Кнопки действий */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flex: 1,
+                flexWrap: 'wrap'
+              }}>
+                {/* Действия ССК */}
+                {user?.role === 'ssk' && (
+                  <>
+                    {!obj.ssk && (
+                      <button 
+                        className="btn small" 
+                        onClick={async()=>{ 
+                          try{
+                            const u = await patchObject(obj.id, { ssk_id: user.id }); 
+                            setObj(u);
+                            alert('Вы стали ответственным за объект')
+                          }catch(e){
+                            alert('Ошибка: ' + (e?.message || ''))
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Стать ответственным
+                      </button>
+                    )}
+                    {!obj.foreman && (
+                      <button 
+                        className="btn small" 
+                        onClick={openAssign}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Назначить прораба
+                      </button>
+                    )}
+                    {workPlans.length === 0 && (
+                      <button 
+                        className="btn small" 
+                        onClick={()=>location.assign(`/work-plans/new/${id}`)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Добавить график работ
+                      </button>
+                    )}
+                    {(obj.areas?.length||0) === 0 && (
+                      <button 
+                        className="btn small" 
+                        onClick={()=>setAreaModalOpen(true)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Создать полигон
+                      </button>
+                    )}
+                    {obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko && (
+                      <button 
+                        className="btn small" 
+                        onClick={async()=>{ 
+                          try{
+                            await requestActivation(obj.id);
+                            alert('Запрос на активацию отправлен')
+                            const updated = await getObject(id);
+                            setObj(updated);
+                          }catch(e){
+                            alert('Ошибка активации: ' + (e?.message || ''))
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          background: '#22c55e',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Активировать
+                      </button>
+                    )}
+                    {obj.status === 'active' && Number(obj.work_progress ?? 0) === 100 && (
+                      <button 
+                        className="btn small" 
+                        onClick={async()=>{ 
+                          try{
+                            await completeObjectBySSK(obj.id);
+                            alert('Объект завершён ССК')
+                            const updated = await getObject(id);
+                            setObj(updated);
+                          }catch(e){
+                            alert('Ошибка завершения: ' + (e?.message || ''))
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          background: '#7c3aed',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Завершить объект
+                      </button>
+                    )}
+                  </>
                 )}
-          {!obj.foreman && (
-                  <button 
-                    className="btn small" 
-                    onClick={openAssign}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Назначить прораба
-                  </button>
+
+                {/* Действия ИКО */}
+                {user?.role === 'iko' && (
+                  <>
+                    {obj.status === 'activation_pending' && (
+                      <button 
+                        className="btn small" 
+                        onClick={()=>setActivationModalOpen(true)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          background: '#22c55e',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Активировать объект
+                      </button>
+                    )}
+                    {obj.status === 'completed_by_ssk' && (
+                      <button 
+                        className="btn small" 
+                        onClick={async()=>{ 
+                          try{
+                            await completeObjectByIKO(obj.id);
+                            alert('Объект полностью завершён')
+                            const updated = await getObject(id);
+                            setObj(updated);
+                          }catch(e){
+                            alert('Ошибка завершения: ' + (e?.message || ''))
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          background: '#1d4ed8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Завершить
+                      </button>
+                    )}
+                  </>
                 )}
-                {workPlans.length === 0 && (
+
+                {/* Общие действия */}
+                {obj.status !== 'completed' && obj.status !== 'completed_by_ssk' && (
                   <button 
                     className="btn small" 
-                    onClick={()=>location.assign(`/work-plans/new/${id}`)}
+                    onClick={()=>setViolationModalOpen(true)}
                     style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Добавить график работ
-                  </button>
-                )}
-                {(obj.areas?.length||0) === 0 && (
-                  <button 
-                    className="btn small" 
-                    onClick={()=>setAreaModalOpen(true)}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Создать полигон
-                  </button>
-                )}
-                {obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko && (
-                  <button 
-                    className="btn small" 
-                    onClick={async()=>{ 
-                      try{
-                        await requestActivation(obj.id);
-                        alert('Запрос на активацию отправлен')
-                        // Обновляем объект после активации
-                        const updated = await getObject(id);
-                        setObj(updated);
-                      }catch(e){
-                        alert('Ошибка активации: ' + (e?.message || ''))
-                      }
-                    }}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '13px',
+                      padding: '6px 12px',
+                      fontSize: '12px',
                       fontWeight: '500',
-                      background: '#22c55e',
-                      color: 'white',
-                      border: 'none'
+                      borderRadius: '6px',
+                      boxShadow: 'none'
                     }}
                   >
-                    Активировать
+                    Выписать нарушение
                   </button>
                 )}
-                <button 
-                  className="btn small" 
-                  onClick={()=>setViolationModalOpen(true)}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '13px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Выписать нарушение
-                </button>
-                </div>
               </div>
             </div>
-          )}
-          {/* Кнопка завершения для ССК */}
-          {console.log('ССК завершение - роль:', user?.role, 'статус:', obj.status, 'прогресс:', obj.work_progress, 'тип прогресса:', typeof obj.work_progress) || user?.role === 'ssk' && obj.status === 'active' && Number(obj.work_progress ?? 0) === 100 && (
-            <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-            }}>
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <h4 style={{
-                  margin: '0 0 8px 0',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: 'var(--text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 12l2 2 4-4"/>
-                    <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.98"/>
-                  </svg>
-                  Завершение объекта
-                </h4>
-                <button 
-                  className="btn small" 
-                  onClick={async()=>{ 
-                    try{
-                      await completeObjectBySSK(obj.id);
-                      alert('Объект завершён ССК')
-                      // Обновляем объект после завершения
-                      const updated = await getObject(id);
-                      setObj(updated);
-                    }catch(e){
-                      alert('Ошибка завершения: ' + (e?.message || ''))
-                    }
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    background: '#7c3aed',
-                    color: 'white',
-                    border: 'none'
-                  }}
-                >
-                  Завершить объект
-                </button>
-              </div>
-            </div>
-          )}
-          {user?.role === 'iko' && obj.status === 'activation_pending' && (
-            <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-            }}>
-              <button 
-                className="btn small" 
-                onClick={()=>setActivationModalOpen(true)}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  background: '#22c55e',
-                  color: 'white',
-                  border: 'none'
-                }}
-              >
-                Активировать объект
-              </button>
-            </div>
-          )}
-          {user?.role === 'iko' && obj.status === 'completed_by_ssk' && (
-            <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-            }}>
-              <button 
-                className="btn small" 
-                onClick={async()=>{ 
-                  try{
-                    await completeObjectByIKO(obj.id);
-                    alert('Объект полностью завершён')
-                    // Обновляем объект после завершения
-                    const updated = await getObject(id);
-                    setObj(updated);
-                  }catch(e){
-                    alert('Ошибка завершения: ' + (e?.message || ''))
-                  }
-                }}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  background: '#1d4ed8',
-                  color: 'white',
-                  border: 'none'
-                }}
-              >
-                Завершить
-              </button>
-            </div>
-          )}
-          {(user?.role === 'ssk' || user?.role === 'iko') && (
-            <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-              marginTop: '8px'
-            }}>
-              <button 
-                className="btn" 
-                onClick={()=>setViolationModalOpen(true)}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '13px',
-                  fontWeight: '500'
-                }}
-              >
-                Выписать нарушение
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       
       <div style={{
@@ -648,24 +647,6 @@ export default function ObjectDetail(){
           marginTop: '20px',
           flexWrap: 'wrap'
         }}>
-          <div style={{
-            padding: '8px 12px',
-            backgroundColor: (obj.violations_open||0) > 0 ? '#fef2f2' : '#f0fdf4',
-            border: `1px solid ${(obj.violations_open||0) > 0 ? '#fecaca' : '#bbf7d0'}`,
-            borderRadius: '8px',
-            fontSize: '14px',
-            color: (obj.violations_open||0) > 0 ? '#dc2626' : '#16a34a',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
-            </svg>
-            <span style={{fontWeight: '600'}}>Нарушения:</span>
-            {obj.violations_open ?? 0} активных из {obj.violations_total ?? 0}
-          </div>
           {obj.visits && (
             <div style={{
               padding: '8px 12px',
@@ -776,8 +757,9 @@ export default function ObjectDetail(){
           fontWeight: '600',
           color: 'var(--text)'
         }}>
-          Рабочие планы
+          Рабочий план
         </h3>
+        
         {workPlansLoading ? (
           <div style={{
             display: 'flex',
@@ -795,35 +777,87 @@ export default function ObjectDetail(){
               animation: 'spin 1s linear infinite',
               marginRight: '16px'
             }} />
-            Загрузка планов...
+            Загрузка плана...
           </div>
-        ) : workPlans.length > 0 ? (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '16px'
-          }}>
-            {workPlans.map(plan => (
-              <div key={plan.id} style={{
-                padding: '16px',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                backgroundColor: 'var(--bg-light)',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.borderColor = 'var(--brand)'
-                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.borderColor = 'var(--border)'
-                e.target.style.boxShadow = 'none'
+        ) : workPlans.length > 0 && workPlanDetails ? (
+          <>
+            {/* Информация о плане */}
+            <div style={{
+              background: 'var(--bg-light)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: '12px'
               }}>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{
+                    margin: '0 0 8px 0',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: 'var(--text)'
+                  }}>
+                    {workPlans[0].title || `План #${workPlans[0].id}`}
+                  </h4>
+                  <div style={{
+                    display: 'flex',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--muted)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      border: '1px solid var(--border)'
+                    }}>
+                      ID: {workPlans[0].id}
+                    </span>
+                    <span style={{
+                      padding: '4px 8px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--muted)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      border: '1px solid var(--border)'
+                    }}>
+                      📅 Создан: {new Date(workPlans[0].created_at).toLocaleDateString('ru-RU')}
+                    </span>
+                    {workPlans[0].versions && workPlans[0].versions.length > 0 && (
+                      <span style={{
+                        padding: '4px 8px',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--muted)',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        border: '1px solid var(--border)'
+                      }}>
+                        📝 Версий: {workPlans[0].versions.length}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Таблица элементов работ */}
+            {workPlanDetails.work_items && workPlanDetails.work_items.length > 0 ? (
+              <>
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: '12px'
+                  marginBottom: '16px'
                 }}>
                   <h4 style={{
                     margin: 0,
@@ -831,51 +865,319 @@ export default function ObjectDetail(){
                     fontWeight: '600',
                     color: 'var(--text)'
                   }}>
-                    {plan.title || `План #${plan.id}`}
+                    Элементы работ ({workPlanDetails.work_items.length})
                   </h4>
-                  <div style={{
-                    padding: '4px 8px',
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    color: 'var(--muted)',
-                    fontWeight: '500'
-                  }}>
-                    {new Date(plan.created_at).toLocaleDateString('ru-RU')}
-                  </div>
                 </div>
+                
                 <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  flexWrap: 'wrap'
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  overflow: 'hidden'
                 }}>
-                  <span style={{
-                    padding: '4px 8px',
-                    backgroundColor: 'var(--bg-secondary)',
-                    color: 'var(--muted)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: '500'
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '14px'
                   }}>
-                    ID: {plan.id}
-                  </span>
-                  {plan.versions && plan.versions.length > 0 && (
-                    <span style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--muted)',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '500'
-                    }}>
-                      Версий: {plan.versions.length}
-                    </span>
-                  )}
+                    <thead>
+                      <tr style={{
+                        background: 'var(--bg-secondary)',
+                        borderBottom: '1px solid var(--border)'
+                      }}>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Название
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Количество
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Единица
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Период
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Статус
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontWeight: '600',
+                          color: 'var(--text)',
+                          fontSize: '13px'
+                        }}>
+                          Документ
+                        </th>
+                        {user?.role === 'ssk' && (
+                          <th style={{
+                            padding: '12px 16px',
+                            textAlign: 'left',
+                            fontWeight: '600',
+                            color: 'var(--text)',
+                            fontSize: '13px'
+                          }}>
+                            Действия
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workPlanDetails.work_items.map((item, idx) => (
+                        <tr key={item.id || idx} style={{
+                          borderBottom: '1px solid var(--border)',
+                          transition: 'background-color 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = 'var(--bg-light)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'transparent'
+                        }}>
+                          <td style={{
+                            padding: '12px 16px',
+                            color: 'var(--text)',
+                            fontWeight: '500'
+                          }}>
+                            {item.name}
+                          </td>
+                          <td style={{
+                            padding: '12px 16px',
+                            color: 'var(--text)'
+                          }}>
+                            {item.quantity || '—'}
+                          </td>
+                          <td style={{
+                            padding: '12px 16px',
+                            color: 'var(--muted)',
+                            fontSize: '13px'
+                          }}>
+                            {item.unit || '—'}
+                          </td>
+                          <td style={{
+                            padding: '12px 16px',
+                            color: 'var(--text)',
+                            fontSize: '13px'
+                          }}>
+                            {item.start_date && item.end_date ? (
+                              <div>
+                                <div>{new Date(item.start_date).toLocaleDateString('ru-RU')}</div>
+                                <div style={{color: 'var(--muted)', fontSize: '12px'}}>
+                                  до {new Date(item.end_date).toLocaleDateString('ru-RU')}
+                                </div>
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td style={{
+                            padding: '12px 16px'
+                          }}>
+                            <span style={{
+                              background: item.status === 'planned' ? '#fef3c7' : 
+                                         item.status === 'in_progress' ? '#dbeafe' : 
+                                         item.status === 'done' ? '#d1fae5' : 'var(--bg-secondary)',
+                              color: item.status === 'planned' ? '#92400e' : 
+                                    item.status === 'in_progress' ? '#1e40af' : 
+                                    item.status === 'done' ? '#065f46' : 'var(--muted)',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}>
+                              {item.status === 'planned' ? 'Запланировано' : 
+                               item.status === 'in_progress' ? 'В работе' : 
+                               item.status === 'done' ? 'Выполнено' : item.status}
+                            </span>
+                          </td>
+                          <td style={{
+                            padding: '12px 16px'
+                          }}>
+                            {item.document_url ? (
+                              <a 
+                                href={item.document_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="btn small"
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '12px',
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                Открыть
+                              </a>
+                            ) : (
+                              <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
+                            )}
+                          </td>
+                          {user?.role === 'ssk' && (
+                            <td style={{
+                              padding: '12px 16px'
+                            }}>
+                              <div style={{display: 'flex', gap: '6px'}}>
+                                {item.status !== 'in_progress' && item.status !== 'done' && (
+                                  <button 
+                                    className="btn small" 
+                                    disabled={updatingItems.has(item.id)}
+                                    onClick={async () => {
+                                      setUpdatingItems(prev => new Set(prev).add(item.id))
+                                      try {
+                                        await updateWorkItemStatus(item.id, 'in_progress')
+                                        const updated = await getWorkPlan(workPlanDetails.id)
+                                        setWorkPlanDetails(updated)
+                                      } catch (e) {
+                                        alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                      } finally {
+                                        setUpdatingItems(prev => {
+                                          const next = new Set(prev)
+                                          next.delete(item.id)
+                                          return next
+                                        })
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '12px',
+                                      background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                      fontWeight: '500',
+                                      transition: 'all 0.2s ease',
+                                      opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                      boxShadow: 'none'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!updatingItems.has(item.id)) {
+                                        e.target.style.background = '#e67e00'
+                                        e.target.style.transform = 'translateY(-1px)'
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!updatingItems.has(item.id)) {
+                                        e.target.style.background = '#ff8a00'
+                                        e.target.style.transform = 'translateY(0)'
+                                      }
+                                    }}
+                                  >
+                                    {updatingItems.has(item.id) ? '...' : 'Начать'}
+                                  </button>
+                                )}
+                                {item.status === 'in_progress' && (
+                                  <button 
+                                    className="btn small" 
+                                    disabled={updatingItems.has(item.id)}
+                                    onClick={async () => {
+                                      setUpdatingItems(prev => new Set(prev).add(item.id))
+                                      try {
+                                        await updateWorkItemStatus(item.id, 'done')
+                                        const updated = await getWorkPlan(workPlanDetails.id)
+                                        setWorkPlanDetails(updated)
+                                      } catch (e) {
+                                        alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                      } finally {
+                                        setUpdatingItems(prev => {
+                                          const next = new Set(prev)
+                                          next.delete(item.id)
+                                          return next
+                                        })
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '12px',
+                                      background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                      fontWeight: '500',
+                                      transition: 'all 0.2s ease',
+                                      opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                      boxShadow: 'none'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!updatingItems.has(item.id)) {
+                                        e.target.style.background = '#16a34a'
+                                        e.target.style.transform = 'translateY(-1px)'
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!updatingItems.has(item.id)) {
+                                        e.target.style.background = '#22c55e'
+                                        e.target.style.transform = 'translateY(0)'
+                                      }
+                                    }}
+                                  >
+                                    {updatingItems.has(item.id) ? '...' : 'Завершить'}
+                                  </button>
+                                )}
+                                {item.status === 'done' && (
+                                  <span style={{
+                                    background: '#d1fae5',
+                                    color: '#065f46',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: '500'
+                                  }}>
+                                    Выполнено
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+              </>
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: '20px',
+                color: 'var(--muted)',
+                background: 'var(--bg-light)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)'
+              }}>
+                <p style={{ margin: 0, fontSize: '14px' }}>
+                  В плане пока нет элементов работ
+                </p>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         ) : (
           <div style={{
             textAlign: 'center',
@@ -901,331 +1203,247 @@ export default function ObjectDetail(){
               fontSize: '16px',
               fontWeight: '600'
             }}>
-              Рабочие планы не найдены
+              Рабочий план не найден
             </h4>
             <p style={{
               margin: 0,
               fontSize: '14px'
             }}>
-              Для этого объекта пока нет созданных рабочих планов
+              Для этого объекта пока нет созданного рабочего плана
             </p>
           </div>
         )}
       </div>
 
-      {/* Элементы работ */}
-      {workPlanDetails && workPlanDetails.work_items && workPlanDetails.work_items.length > 0 && (
-        <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '20px',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      {/* Блок нарушений */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
+        <h3 style={{
+          margin: '0 0 20px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: 'var(--text)'
         }}>
-          <h3 style={{
-            margin: '0 0 20px 0',
-            fontSize: '20px',
-            fontWeight: '600',
-            color: 'var(--text)'
-          }}>
-            Элементы работ ({workPlanDetails.work_items.length})
-          </h3>
+          Нарушения
+        </h3>
+        
+        {violationsLoading ? (
           <div style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            overflow: 'hidden'
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 20px',
+            color: 'var(--muted)'
           }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '14px'
-            }}>
-              <thead>
-                <tr style={{
-                  background: 'var(--bg-secondary)',
-                  borderBottom: '1px solid var(--border)'
-                }}>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Название
-                  </th>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Количество
-                  </th>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Единица
-                  </th>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Период
-                  </th>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Статус
-                  </th>
-                  <th style={{
-                    padding: '12px 16px',
-                    textAlign: 'left',
-                    fontWeight: '600',
-                    color: 'var(--text)',
-                    fontSize: '13px'
-                  }}>
-                    Документ
-                  </th>
-                  {user?.role === 'ssk' && (
-                    <th style={{
-                      padding: '12px 16px',
-                      textAlign: 'left',
-                      fontWeight: '600',
-                      color: 'var(--text)',
-                      fontSize: '13px'
-                    }}>
-                      Действия
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {workPlanDetails.work_items.map((item, idx) => (
-                  <tr key={item.id || idx} style={{
-                    borderBottom: '1px solid var(--border)',
-                    transition: 'background-color 0.2s ease'
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid var(--border)',
+              borderTop: '3px solid var(--brand)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginRight: '16px'
+            }} />
+            Загрузка нарушений...
+          </div>
+        ) : violations.length > 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            {violations.slice(0, 5).map(violation => {
+              const statusInfo = getViolationStatusInfo(violation.status)
+              const isAuthor = violation.author === user?.id
+              const needsMyReview = (violation.status === 'fixed' || violation.status === 'awaiting_verification') && isAuthor
+              const cannotReview = (violation.status === 'fixed' || violation.status === 'awaiting_verification') && !isAuthor
+              
+              return (
+                <div 
+                  key={violation.id} 
+                  onClick={() => openViolationDetailModal(violation)}
+                  style={{
+                    background: needsMyReview ? 'var(--brand)05' : 'var(--bg-light)',
+                    border: needsMyReview ? `1px solid var(--brand)30` : '1px solid var(--border)',
+                    borderLeft: `4px solid ${statusInfo.color}`,
+                    borderRadius: '8px',
+                    padding: '16px',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    boxShadow: 'none'
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = 'var(--bg-light)'
+                    e.target.style.borderColor = statusInfo.color
+                    e.target.style.boxShadow = `0 2px 8px ${statusInfo.color}20`
+                    e.target.style.transform = 'translateY(-1px)'
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = 'transparent'
-                  }}>
-                    <td style={{
-                      padding: '12px 16px',
-                      color: 'var(--text)',
-                      fontWeight: '500'
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.borderLeftColor = statusInfo.color
+                    e.target.style.boxShadow = 'none'
+                    e.target.style.transform = 'translateY(0)'
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '6px'
                     }}>
-                      {item.name}
-                    </td>
-                    <td style={{
-                      padding: '12px 16px',
-                      color: 'var(--text)'
-                    }}>
-                      {item.quantity || '—'}
-                    </td>
-                    <td style={{
-                      padding: '12px 16px',
-                      color: 'var(--muted)',
-                      fontSize: '13px'
-                    }}>
-                      {item.unit || '—'}
-                    </td>
-                    <td style={{
-                      padding: '12px 16px',
-                      color: 'var(--text)',
-                      fontSize: '13px'
-                    }}>
-                      {item.start_date && item.end_date ? (
-                        <div>
-                          <div>{new Date(item.start_date).toLocaleDateString('ru-RU')}</div>
-                          <div style={{color: 'var(--muted)', fontSize: '12px'}}>
-                            до {new Date(item.end_date).toLocaleDateString('ru-RU')}
-                          </div>
-                        </div>
-                      ) : '—'}
-                    </td>
-                    <td style={{
-                      padding: '12px 16px'
-                    }}>
-                      <span style={{
-                        background: item.status === 'planned' ? '#fef3c7' : 
-                                   item.status === 'in_progress' ? '#dbeafe' : 
-                                   item.status === 'done' ? '#d1fae5' : 'var(--bg-secondary)',
-                        color: item.status === 'planned' ? '#92400e' : 
-                              item.status === 'in_progress' ? '#1e40af' : 
-                              item.status === 'done' ? '#065f46' : 'var(--muted)',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500'
+                      <div style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        background: `${statusInfo.color}15`,
+                        color: statusInfo.color,
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        border: `1px solid ${statusInfo.color}30`
                       }}>
-                        {item.status === 'planned' ? 'Запланировано' : 
-                         item.status === 'in_progress' ? 'В работе' : 
-                         item.status === 'done' ? 'Выполнено' : item.status}
-                      </span>
-                    </td>
-                    <td style={{
-                      padding: '12px 16px'
-                    }}>
-                      {item.document_url ? (
-                        <a 
-                          href={item.document_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn small"
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          Открыть
-                        </a>
-                      ) : (
-                        <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
+                        {statusInfo.label}
+                      </div>
+                      {needsMyReview && (
+                        <div style={{
+                          padding: '2px 6px',
+                          borderRadius: '8px',
+                          background: 'var(--brand)',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}>
+                          👁️ Ваша проверка
+                        </div>
                       )}
-                    </td>
-                    {user?.role === 'ssk' && (
-                      <td style={{
-                        padding: '12px 16px'
-                      }}>
-                        <div style={{display: 'flex', gap: '6px'}}>
-                          {item.status !== 'in_progress' && item.status !== 'done' && (
-                            <button 
-                              className="btn small" 
-                              disabled={updatingItems.has(item.id)}
-                              onClick={async () => {
-                                setUpdatingItems(prev => new Set(prev).add(item.id))
-                                try {
-                                  await updateWorkItemStatus(item.id, 'in_progress')
-                                  const updated = await getWorkPlan(workPlanDetails.id)
-                                  setWorkPlanDetails(updated)
-                                } catch (e) {
-                                  alert('Ошибка обновления статуса: ' + (e?.message || ''))
-                                } finally {
-                                  setUpdatingItems(prev => {
-                                    const next = new Set(prev)
-                                    next.delete(item.id)
-                                    return next
-                                  })
-                                }
-                              }}
-                              style={{
-                                padding: '4px 8px',
-                                fontSize: '12px',
-                                background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
-                                fontWeight: '500',
-                                transition: 'all 0.2s ease',
-                                opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                boxShadow: 'none'
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!updatingItems.has(item.id)) {
-                                  e.target.style.background = '#e67e00'
-                                  e.target.style.transform = 'translateY(-1px)'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!updatingItems.has(item.id)) {
-                                  e.target.style.background = '#ff8a00'
-                                  e.target.style.transform = 'translateY(0)'
-                                }
-                              }}
-                            >
-                              {updatingItems.has(item.id) ? '...' : 'Начать'}
-                            </button>
-                          )}
-                          {item.status === 'in_progress' && (
-                            <button 
-                              className="btn small" 
-                              disabled={updatingItems.has(item.id)}
-                              onClick={async () => {
-                                setUpdatingItems(prev => new Set(prev).add(item.id))
-                                try {
-                                  await updateWorkItemStatus(item.id, 'done')
-                                  const updated = await getWorkPlan(workPlanDetails.id)
-                                  setWorkPlanDetails(updated)
-                                } catch (e) {
-                                  alert('Ошибка обновления статуса: ' + (e?.message || ''))
-                                } finally {
-                                  setUpdatingItems(prev => {
-                                    const next = new Set(prev)
-                                    next.delete(item.id)
-                                    return next
-                                  })
-                                }
-                              }}
-                              style={{
-                                padding: '4px 8px',
-                                fontSize: '12px',
-                                background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
-                                fontWeight: '500',
-                                transition: 'all 0.2s ease',
-                                opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                boxShadow: 'none'
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!updatingItems.has(item.id)) {
-                                  e.target.style.background = '#16a34a'
-                                  e.target.style.transform = 'translateY(-1px)'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!updatingItems.has(item.id)) {
-                                  e.target.style.background = '#22c55e'
-                                  e.target.style.transform = 'translateY(0)'
-                                }
-                              }}
-                            >
-                              {updatingItems.has(item.id) ? '...' : 'Завершить'}
-                            </button>
-                          )}
-                          {item.status === 'done' && (
-                            <span style={{
-                              background: '#d1fae5',
-                              color: '#065f46',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: '500'
-                            }}>
-                              Выполнено
-                            </span>
-                          )}
+                      {cannotReview && (
+                        <div style={{
+                          padding: '2px 6px',
+                          borderRadius: '8px',
+                          background: 'var(--muted)',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}>
+                          🚫 Не ваше
                         </div>
-                      </td>
+                      )}
+                      <h4 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: 'var(--text)'
+                      }}>
+                        {violation.title}
+                      </h4>
+                    </div>
+                    
+                    {violation.description && (
+                      <p style={{
+                        margin: '0 0 8px 0',
+                        color: 'var(--text)',
+                        fontSize: '14px',
+                        lineHeight: '1.4'
+                      }}>
+                        {violation.description.length > 100 ? 
+                          `${violation.description.substring(0, 100)}...` : 
+                          violation.description
+                        }
+                      </p>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    
+                    <div style={{
+                      display: 'flex',
+                      gap: '12px',
+                      fontSize: '12px',
+                      color: 'var(--muted)',
+                      alignItems: 'center'
+                    }}>
+                      <span>📅 {new Date(violation.created_at).toLocaleDateString('ru-RU')}</span>
+                      {violation.requires_stop && (
+                        <span style={{color: '#ef4444', fontWeight: '500'}}>
+                          ⚠️ Требует остановки работ
+                        </span>
+                      )}
+                      {violation.requires_personal_recheck && (
+                        <span style={{color: '#f59e0b', fontWeight: '500'}}>
+                          👁️ Требует личной проверки
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            
+            {violations.length > 5 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '12px',
+                background: 'var(--bg-secondary)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)'
+              }}>
+                <a 
+                  href="/violations"
+                  style={{
+                    color: 'var(--brand)',
+                    textDecoration: 'none',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Показать все нарушения ({violations.length})
+                </a>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: 'var(--muted)'
+          }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '24px'
+            }}>
+              ✅
+            </div>
+            <h4 style={{
+              margin: '0 0 8px 0',
+              color: 'var(--text)',
+              fontSize: '16px',
+              fontWeight: '600'
+            }}>
+              Нарушений не найдено
+            </h4>
+            <p style={{
+              margin: 0,
+              fontSize: '14px'
+            }}>
+              На этом объекте пока нет зарегистрированных нарушений
+            </p>
+          </div>
+        )}
+      </div>
 
       <section className="card">
         <h3 style={{marginTop:0}}>Исполнительная документация</h3>
@@ -1550,6 +1768,31 @@ export default function ObjectDetail(){
           </form>
         </div>
       </Modal>
+
+      {/* Модальное окно для просмотра деталей нарушения */}
+      <ViolationModal
+        open={violationDetailModalOpen}
+        onClose={closeViolationDetailModal}
+        violation={selectedViolation}
+        getStatusInfo={getViolationStatusInfo}
+        getObjectName={() => `${obj.name} (${obj.address})`}
+        user={user}
+        onViolationUpdate={() => {
+          // Перезагружаем нарушения для этого объекта
+          if (obj) {
+            setViolationsLoading(true)
+            getViolations({ object_id: obj.id }).then(res=>{
+              console.log('[ui object-detail] violations reloaded', res)
+              setViolations(res.items || [])
+            }).catch(e=>{
+              console.error('[ui object-detail] error reloading violations', e)
+              setViolations([])
+            }).finally(()=>{
+              setViolationsLoading(false)
+            })
+          }
+        }}
+      />
     </div>
   )
 }

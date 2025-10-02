@@ -18,7 +18,6 @@ import Tickets from './pages/Tickets.jsx'
 import WorkSchedule from './pages/WorkSchedule.jsx'
 import Deliveries from './pages/Deliveries.jsx'
 import Violations from './pages/Violations.jsx'
-import ViolationDetail from './pages/ViolationDetail.jsx'
 import Visits from './pages/Visits.jsx'
 import SSKChecklists from './pages/SSKChecklists.jsx'
 
@@ -265,7 +264,6 @@ export default function App(){
         <Route path="/work-schedule" element={<Protected><Layout><WorkSchedule/></Layout></Protected>} />
         <Route path="/deliveries" element={<Protected><RoleProtected roles={["foreman","ssk"]}><Layout><Deliveries/></Layout></RoleProtected></Protected>} />
         <Route path="/violations" element={<Protected><RoleProtected roles={["foreman","ssk","iko"]}><Layout><Violations/></Layout></RoleProtected></Protected>} />
-        <Route path="/violations/:id" element={<Protected><RoleProtected roles={["foreman","ssk","iko"]}><Layout><ViolationDetail/></Layout></RoleProtected></Protected>} />
         <Route path="/visits" element={<Protected><RoleProtected roles={["ssk","iko"]}><Layout><Visits/></Layout></RoleProtected></Protected>} />
         <Route path="/ssk/checklists" element={<Protected><RoleProtected roles={["ssk"]}><Layout><SSKChecklists/></Layout></RoleProtected></Protected>} />
         <Route path="*" element={<Navigate to="/objects" />} />
