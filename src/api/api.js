@@ -1,5 +1,5 @@
 
-const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru';
+const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru/api/v1';
 const AI_BASE = 'https://building-ai.itc-hub.ru';
 const S3_BASE = 'https://building-s3-api.itc-hub.ru';
 
@@ -8,7 +8,7 @@ function getTokens(){
 }
 function setTokens(t){ localStorage.setItem('ccj_tokens', JSON.stringify(t||{})) }
 
-async function http(path, { method='GET', headers={}, body, retry=true } = {}){
+export async function http(path, { method='GET', headers={}, body, retry=true } = {}){
   const url = path.startsWith('http') ? path : `${BASE}${path}`
   const tokens = getTokens()
   const h = { 'Content-Type':'application/json', ...headers }
@@ -304,6 +304,47 @@ export async function reviewDailyChecklist({ id, decision, comment, photos }){
   return await http(`/daily-checklists/${id}/review`, { method:'POST', body: JSON.stringify({ decision, comment, photos }) })
 }
 export async function markDailyChecklistReviewed({ id }){ return reviewDailyChecklist({ id, decision:'approve' }) }
+
+// API методы для ССК
+export async function getSSKDailyChecklists({ object_id, status, page = 1, limit = 10 } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  if (status) qs.set('status', status)
+  qs.set('page', String(page))
+  qs.set('limit', String(limit))
+  return await http(`/daily-checklists?${qs.toString()}`)
+}
+
+export async function reviewSSKDailyChecklist({ id, decision, comment }){
+  return await http(`/daily-checklists/${id}/review`, { 
+    method:'POST', 
+    body: JSON.stringify({ decision, comment }) 
+  })
+}
+
+// API методы для прорабов (ежедневные чеклисты)
+export async function getChecklists({ object_id } = {}){
+  const qs = new URLSearchParams()
+  if (object_id) qs.set('object_id', object_id)
+  return await http(`/daily-checklists?${qs.toString()}`)
+}
+
+export async function getTodayChecklist(object_id){
+  const today = new Date().toISOString().split('T')[0]
+  const qs = new URLSearchParams()
+  qs.set('object_id', object_id)
+  qs.set('date', today)
+  const data = await http(`/daily-checklists?${qs.toString()}`)
+  return data.items && data.items.length > 0 ? data.items[0] : null
+}
+
+export async function createChecklist(payload){
+  return await http('/daily-checklists', { method:'POST', body: JSON.stringify(payload) })
+}
+
+export async function updateChecklist(id, payload){
+  return await http(`/daily-checklists/${id}`, { method:'PATCH', body: JSON.stringify(payload) })
+}
 
 export async function getAIObjectReports({ object_id }){
   return await http('/ai/structured', { method:'POST', body: JSON.stringify({ prompt:`Сводка по объекту ${object_id}`, schema_json:{ type:'object', properties:{ summary:{ type:'string' } }, required:['summary'] } }) })

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { getDelivery, attachDeliveryPhotos, sendDeliveryToLab, acceptDelivery, receiveDelivery, extractTextFromImage } from '../api/deliveries.js'
+import { getDelivery, sendDeliveryToLab, acceptDelivery } from '../api/deliveries.js'
 import { getObjects } from '../api/api.js'
 import { useAuth } from '../auth/AuthContext'
 import ReceiveDeliveryModal from '../components/ReceiveDeliveryModal.jsx'
@@ -13,10 +13,7 @@ export default function DeliveryDetail() {
   const [objects, setObjects] = useState([])
   const [currentObject, setCurrentObject] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [photos, setPhotos] = useState([])
-  const [uploading, setUploading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
-  const [processingCV, setProcessingCV] = useState(false)
   const [showReceiveModal, setShowReceiveModal] = useState(false)
 
   useEffect(() => {
@@ -56,87 +53,6 @@ export default function DeliveryDetail() {
     }
   }
 
-  const handlePhotoUpload = (event) => {
-    const files = Array.from(event.target.files)
-    
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          setPhotos(prev => [...prev, {
-            file,
-            preview: e.target.result,
-            name: file.name
-          }])
-        }
-        reader.readAsDataURL(file)
-      }
-    })
-  }
-
-  const removePhoto = (index) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const handleSubmitPhotos = async () => {
-    if (photos.length === 0) {
-      alert('Выберите фотографии для загрузки')
-      return
-    }
-
-    try {
-      setUploading(true)
-      
-      // Конвертируем фотографии в base64
-      const photoData = await Promise.all(
-        photos.map(photo => {
-          return new Promise((resolve) => {
-            const reader = new FileReader()
-            reader.onload = (e) => {
-              resolve(e.target.result) // base64 строка
-            }
-            reader.readAsDataURL(photo.file)
-          })
-        })
-      )
-
-      // Прикрепляем фотографии к поставке
-      await attachDeliveryPhotos(id, photoData)
-      
-      // Обрабатываем первую фотографию через CV API
-      if (photoData.length > 0) {
-        setProcessingCV(true)
-        try {
-          const cvResult = await extractTextFromImage(
-            photoData[0], 
-            delivery?.object, 
-            parseInt(id)
-          )
-          
-          // Сохраняем результат CV обработки в sessionStorage
-          sessionStorage.setItem(`delivery_materials_${id}`, JSON.stringify(cvResult))
-          
-          // Переходим на страницу подтверждения материалов
-          navigate(`/deliveries/${id}/materials`)
-          return
-        } catch (cvError) {
-          console.error('Ошибка обработки CV API:', cvError)
-          alert('Фотографии загружены, но произошла ошибка при обработке накладной. Попробуйте позже.')
-        } finally {
-          setProcessingCV(false)
-        }
-      }
-      
-      alert('Фотографии успешно прикреплены!')
-      setPhotos([])
-      loadDelivery() // Перезагружаем данные
-    } catch (error) {
-      console.error('Ошибка загрузки фотографий:', error)
-      alert('Ошибка при загрузке фотографий')
-    } finally {
-      setUploading(false)
-    }
-  }
 
   const handleSendToLab = async () => {
     if (!confirm('Отправить поставку в лабораторию?')) return
@@ -244,23 +160,13 @@ export default function DeliveryDetail() {
   }
 
   const statusInfo = getStatusInfo(delivery.status)
-  // Прораб может прикреплять фото и принимать доставку
-  const canAttachPhotos = user?.role === 'foreman' && !['accepted', 'rejected'].includes(delivery.status)
-  const canAcceptDelivery = user?.role === 'foreman' && !['accepted', 'rejected'].includes(delivery.status)
+  // Прораб может принимать доставку
+  const canAcceptDelivery = user?.role === 'foreman' && !['accepted', 'rejected', 'received'].includes(delivery.status)
   
   // ССК работает с уже принятыми прорабом поставками
-  const canSendToLab = user?.role === 'ssk' && delivery.status === 'delivered'
-  const canAcceptBySSK = user?.role === 'ssk' && (delivery.status === 'in_lab' || delivery.status === 'delivered')
+  const canSendToLab = user?.role === 'ssk' && (delivery.status === 'delivered' || delivery.status === 'received')
+  const canAcceptBySSK = user?.role === 'ssk' && (delivery.status === 'in_lab' || delivery.status === 'received')
 
-  // Отладочная информация
-  console.log('DeliveryDetail Debug:', {
-    userRole: user?.role,
-    deliveryStatus: delivery.status,
-    canAttachPhotos,
-    canAcceptDelivery,
-    canSendToLab,
-    canAcceptBySSK
-  })
 
   return (
     <div className="page">
@@ -628,188 +534,7 @@ export default function DeliveryDetail() {
         </div>
       )}
 
-      {/* Отладочная информация для прораба */}
-      {user?.role === 'foreman' && (
-        <div style={{
-          background: '#f3f4f6',
-          border: '1px solid #d1d5db',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '20px',
-          fontSize: '14px'
-        }}>
-          <strong>Debug Info (Прораб):</strong><br/>
-          Роль: {user?.role}<br/>
-          Статус поставки: {delivery.status}<br/>
-          Object ID: {delivery?.object || 'Отсутствует'}<br/>
-          Object Name: {currentObject?.name || 'Не загружен'}<br/>
-          Можно прикреплять фото: {canAttachPhotos ? 'Да' : 'Нет'}<br/>
-          Можно принять доставку: {canAcceptDelivery ? 'Да' : 'Нет'}<br/>
-          Запрещенные статусы: accepted, rejected
-        </div>
-      )}
 
-      {/* Блок для прикрепления фотографий (только для прораба) */}
-      {canAttachPhotos && (
-        <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '24px',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-        }}>
-          <h2 style={{
-            margin: '0 0 16px 0',
-            fontSize: '20px',
-            fontWeight: '600',
-            color: 'var(--text)'
-          }}>
-            📷 Прикрепить фотографии накладных
-          </h2>
-          
-          <div style={{ marginBottom: '16px' }}>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handlePhotoUpload}
-              style={{ display: 'none' }}
-              id="photo-upload"
-            />
-            
-            <label
-              htmlFor="photo-upload"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '12px 24px',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: 'var(--text)',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = 'var(--border)'
-                e.target.style.transform = 'translateY(-1px)'
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = 'var(--bg-secondary)'
-                e.target.style.transform = 'translateY(0)'
-              }}
-            >
-              📷 Выбрать фотографии
-            </label>
-          </div>
-
-          {/* Превью загруженных фотографий */}
-          {photos.length > 0 && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: '12px',
-              marginBottom: '16px'
-            }}>
-              {photos.map((photo, index) => (
-                <div
-                  key={index}
-                  style={{
-                    position: 'relative',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)'
-                  }}
-                >
-                  <img
-                    src={photo.preview}
-                    alt={`Фото ${index + 1}`}
-                    style={{
-                      width: '100%',
-                      height: '120px',
-                      objectFit: 'cover',
-                      display: 'block'
-                    }}
-                  />
-                  <button
-                    onClick={() => removePhoto(index)}
-                    style={{
-                      position: 'absolute',
-                      top: '4px',
-                      right: '4px',
-                      background: 'rgba(0,0,0,0.7)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '24px',
-                      height: '24px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    ✕
-                  </button>
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '4px',
-                    left: '4px',
-                    right: '4px',
-                    background: 'rgba(0,0,0,0.7)',
-                    color: 'white',
-                    fontSize: '10px',
-                    padding: '2px 4px',
-                    borderRadius: '2px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {photo.name}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {photos.length > 0 && (
-            <button
-              onClick={handleSubmitPhotos}
-              disabled={uploading || processingCV}
-              style={{
-                padding: '12px 24px',
-                background: 'var(--brand)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: uploading || processingCV ? 'not-allowed' : 'pointer',
-                opacity: uploading || processingCV ? 0.7 : 1,
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                if (!uploading && !processingCV) {
-                  e.target.style.transform = 'translateY(-1px)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!uploading && !processingCV) {
-                  e.target.style.transform = 'translateY(0)'
-                }
-              }}
-            >
-              {processingCV ? '🔍 Обработка накладной...' : 
-               uploading ? '📤 Загрузка...' : 
-               '📤 Прикрепить фотографии'}
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Модальное окно принятия доставки */}
       <ReceiveDeliveryModal

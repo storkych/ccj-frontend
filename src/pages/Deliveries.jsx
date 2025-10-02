@@ -1,30 +1,59 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getDeliveries } from '../api/deliveries.js'
+import { getObjects } from '../api/api.js'
 import { useAuth } from '../auth/AuthContext'
 
 export default function Deliveries() {
   const { user } = useAuth()
   const [deliveries, setDeliveries] = useState([])
+  const [objects, setObjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [showTodayOnly, setShowTodayOnly] = useState(true)
+  const [selectedObject, setSelectedObject] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState('')
 
   useEffect(() => {
-    loadDeliveries()
-  }, [showTodayOnly])
+    loadData()
+  }, [showTodayOnly, selectedObject, selectedStatus])
 
-  const loadDeliveries = async () => {
+  const loadData = async () => {
     try {
       setLoading(true)
+      
+      // Загружаем объекты, если еще не загружены
+      let currentObjects = objects
+      if (objects.length === 0) {
+        const objectsData = await getObjects()
+        currentObjects = objectsData.items || []
+        setObjects(currentObjects)
+      }
+      
+      // Загружаем поставки с фильтрами
       const params = {}
       if (showTodayOnly) {
         params.today = true
       }
+      if (selectedObject) {
+        params.object_id = selectedObject
+      }
+      if (selectedStatus) {
+        params.status = selectedStatus
+      }
+      
       const data = await getDeliveries(params)
-      setDeliveries(data.items || [])
+      const deliveriesWithObjects = (data.items || []).map(delivery => {
+        const objectData = currentObjects.find(obj => obj.id === delivery.object)
+        return {
+          ...delivery,
+          objectData
+        }
+      })
+      
+      setDeliveries(deliveriesWithObjects)
     } catch (error) {
-      console.error('Ошибка загрузки поставок:', error)
-      alert('Ошибка загрузки поставок')
+      console.error('Ошибка загрузки данных:', error)
+      alert('Ошибка загрузки данных')
     } finally {
       setLoading(false)
     }
@@ -77,6 +106,7 @@ export default function Deliveries() {
 
   return (
     <div className="page">
+      {/* Заголовок */}
       <div style={{
         background: 'var(--panel)',
         border: '1px solid var(--border)',
@@ -85,49 +115,151 @@ export default function Deliveries() {
         marginBottom: '20px',
         boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
       }}>
+        <h1 style={{
+          margin: 0,
+          fontSize: '28px',
+          fontWeight: '700',
+          color: 'var(--text)'
+        }}>
+          📦 Поставки
+        </h1>
+      </div>
+
+      {/* Блок фильтров */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px'
+          gap: '16px',
+          flexWrap: 'wrap'
         }}>
-          <h1 style={{
-            margin: 0,
-            fontSize: '28px',
-            fontWeight: '700',
-            color: 'var(--text)'
+          <div style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: 'var(--text)',
+            marginRight: '8px'
           }}>
-            📦 Поставки
-          </h1>
+            🔍 Фильтры:
+          </div>
 
+          {/* Фильтр по объекту */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+              Объект:
+            </label>
+            <select
+              value={selectedObject}
+              onChange={(e) => setSelectedObject(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                fontSize: '14px',
+                minWidth: '120px'
+              }}
+            >
+          <option value="">Все объекты</option>
+              {objects.map(obj => (
+                <option key={obj.id} value={obj.id}>{obj.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Фильтр по статусу */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+              Статус:
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                fontSize: '14px',
+                minWidth: '120px'
+              }}
+            >
+              <option value="">Все статусы</option>
+              <option value="scheduled">Запланировано</option>
+              <option value="pending">Ожидает</option>
+              <option value="in_transit">В пути</option>
+              <option value="delivered">Доставлено</option>
+              <option value="received">Принято прорабом</option>
+              <option value="in_lab">В лаборатории</option>
+              <option value="accepted">Принято ССК</option>
+              <option value="rejected">Отклонено</option>
+        </select>
+          </div>
+
+          {/* Чекбокс "Только сегодняшние" */}
           {user?.role === 'foreman' && (
-            <div style={{
+            <label style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '12px'
+              gap: '8px',
+              fontSize: '14px',
+              color: 'var(--text)',
+              cursor: 'pointer'
             }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                color: 'var(--text)',
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showTodayOnly}
-                  onChange={(e) => setShowTodayOnly(e.target.checked)}
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
-                />
-                Только сегодняшние
-              </label>
-            </div>
+              <input
+                type="checkbox"
+                checked={showTodayOnly}
+                onChange={(e) => setShowTodayOnly(e.target.checked)}
+                style={{
+                  width: '16px',
+                  height: '16px'
+                }}
+              />
+              Только сегодняшние
+            </label>
+          )}
+
+          {/* Кнопка сброса фильтров */}
+          {(selectedObject || selectedStatus || showTodayOnly) && (
+            <button
+              onClick={() => {
+                setSelectedObject('')
+                setSelectedStatus('')
+                setShowTodayOnly(false)
+              }}
+              style={{
+                padding: '6px 12px',
+                background: 'var(--muted)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              ✕ Сбросить
+            </button>
           )}
         </div>
+      </div>
+
+      {/* Список поставок */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '24px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
 
         {deliveries.length === 0 ? (
           <div style={{
@@ -177,61 +309,67 @@ export default function Deliveries() {
                     e.target.style.transform = 'translateY(0)'
                     e.target.style.boxShadow = 'none'
                   }}>
+                    {/* Основная сетка: левая - информация, правая - статус */}
                     <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: '12px'
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: '20px',
+                      alignItems: 'start'
                     }}>
+                      {/* Левая колонка - основная информация */}
                       <div>
+                        {/* Заголовок: название объекта и дата */}
                         <div style={{
                           display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          marginBottom: '8px'
+                          alignItems: 'baseline',
+                          gap: '16px',
+                          marginBottom: '6px',
+                          flexWrap: 'wrap'
                         }}>
-                          <div style={{
-                            padding: '4px 12px',
-                            borderRadius: '20px',
-                            background: `${statusInfo.color}15`,
-                            color: statusInfo.color,
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            border: `1px solid ${statusInfo.color}30`
-                          }}>
-                            {statusInfo.label}
-                          </div>
-                          
-                          {delivery.object && (
-                            <div style={{
-                              padding: '4px 12px',
-                              borderRadius: '20px',
-                              background: 'var(--brand)15',
-                              color: 'var(--brand)',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              border: '1px solid var(--brand)30'
+                          {delivery.objectData && (
+                            <h3 style={{
+                              margin: 0,
+                              fontSize: '18px',
+                              fontWeight: '700',
+                              color: 'var(--text)'
                             }}>
-                              📍 {delivery.object.name}
+                              {delivery.objectData.name}
+                            </h3>
+                          )}
+                          
+                          {delivery.delivery_date && (
+                            <div style={{
+                              fontSize: '14px',
+                              color: 'var(--muted)',
+                              fontWeight: '500'
+                            }}>
+                              {new Date(delivery.delivery_date).toLocaleDateString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })}
                             </div>
                           )}
                         </div>
                         
-                        <h3 style={{
-                          margin: '0 0 8px 0',
-                          fontSize: '18px',
-                          fontWeight: '600',
-                          color: 'var(--text)'
-                        }}>
-                          {delivery.title || `Поставка #${delivery.id}`}
-                        </h3>
+                        {/* Адрес */}
+                        {delivery.objectData?.address && (
+                          <div style={{
+                            fontSize: '14px',
+                            color: 'var(--muted)',
+                            marginBottom: '12px'
+                          }}>
+                            {delivery.objectData.address}
+                          </div>
+                        )}
                         
+                        {/* Описание */}
                         {delivery.description && (
                           <p style={{
                             margin: '0 0 12px 0',
                             color: 'var(--text)',
                             fontSize: '14px',
-                            lineHeight: '1.4'
+                            lineHeight: '1.5'
                           }}>
                             {delivery.description.length > 150 ? 
                               `${delivery.description.substring(0, 150)}...` : 
@@ -239,26 +377,50 @@ export default function Deliveries() {
                             }
                           </p>
                         )}
+
+                        {/* Дата создания если нет даты доставки */}
+                        {!delivery.delivery_date && (
+                          <div style={{
+                            fontSize: '13px',
+                            color: 'var(--muted)'
+                          }}>
+                            Создано: {new Date(delivery.created_at).toLocaleDateString('ru-RU')}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Правая колонка - статус и номер */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: '8px'
+                      }}>
+                        {/* Статус */}
+                        <span style={{
+                          background: statusInfo.color,
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                        }}>
+                          {statusInfo.label}
+                        </span>
+                        
+                        {/* Номер поставки */}
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--muted)',
+                          fontWeight: '500'
+                        }}>
+                          #{delivery.id}
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{
-                      display: 'flex',
-                      gap: '16px',
-                      fontSize: '13px',
-                      color: 'var(--muted)',
-                      alignItems: 'center'
-                    }}>
-                      {delivery.expected_date && (
-                        <span>📅 Ожидается: {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}</span>
-                      )}
-                      {delivery.supplier && (
-                        <span>🏢 {delivery.supplier}</span>
-                      )}
-                      {delivery.items_count && (
-                        <span>📦 Позиций: {delivery.items_count}</span>
-                      )}
-                    </div>
                   </div>
                 </Link>
               )

@@ -92,13 +92,18 @@ export async function extractTextFromImage(imageBase64, objectId = null, deliver
   
   const body = JSON.stringify({
     images_base64: [imageBase64],
-    object_id: objectId,
-    delivery_id: deliveryId,
+    object_id: objectId ? String(objectId) : null,
+    delivery_id: deliveryId ? String(deliveryId) : null,
     date: new Date().toISOString().split('T')[0]
   })
 
   const ts = new Date().toISOString()
-  console.log(`[cv-api →]`, ts, 'POST', url, 'Image processing...')
+  console.log(`[cv-api →]`, ts, 'POST', url, 'Image processing...', {
+    object_id: objectId ? String(objectId) : null,
+    delivery_id: deliveryId ? String(deliveryId) : null,
+    date: new Date().toISOString().split('T')[0],
+    image_size: imageBase64.length
+  })
   
   try {
     const response = await fetch(url, {
