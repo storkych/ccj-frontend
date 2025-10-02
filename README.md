@@ -38,7 +38,7 @@ ccj-frontend/
 │   │   ├── DeliveryMaterials.jsx  # 📦 Материалы поставки
 │   │   ├── FileStorage.jsx        # 📁 Файловое хранилище
 │   │   ├── Login.jsx              # 🔐 Авторизация
-│   │   ├── Memos.jsx              # 📝 Меморандумы
+│   │   ├── Memos.jsx              # 📝 Памятки
 │   │   ├── Notifications.jsx      # 🔔 Уведомления
 │   │   ├── ObjectDetail.jsx       # 🏗️ Детали объекта
 │   │   ├── Objects.jsx            # 🏗️ Объекты
