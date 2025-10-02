@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { getDelivery, sendDeliveryToLab, acceptDelivery } from '../api/deliveries.js'
+import { getDelivery, sendDeliveryToLab, acceptDelivery, rejectDelivery } from '../api/deliveries.js'
 import { getObjects } from '../api/api.js'
 import { useAuth } from '../auth/AuthContext'
 import ReceiveDeliveryModal from '../components/ReceiveDeliveryModal.jsx'
@@ -88,12 +88,29 @@ export default function DeliveryDetail() {
 
     try {
       setActionLoading(true)
-      await acceptDelivery(id)
+      await acceptDelivery({ id, comment: 'Поставка принята ССК' })
       alert('Поставка принята')
       loadDelivery()
     } catch (error) {
       console.error('Ошибка принятия поставки:', error)
       alert('Ошибка при принятии поставки')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleRejectDelivery = async () => {
+    const comment = prompt('Укажите причину отклонения поставки:')
+    if (!comment || !comment.trim()) return
+
+    try {
+      setActionLoading(true)
+      await rejectDelivery({ id, comment: comment.trim() })
+      alert('Поставка отклонена')
+      loadDelivery()
+    } catch (error) {
+      console.error('Ошибка отклонения поставки:', error)
+      alert('Ошибка при отклонении поставки')
     } finally {
       setActionLoading(false)
     }
@@ -365,6 +382,39 @@ export default function DeliveryDetail() {
                   }}
                 >
                   ✅ Принять
+                </button>
+              )}
+
+              {canAcceptBySSK && (
+                <button
+                  onClick={handleRejectDelivery}
+                  disabled={actionLoading}
+                  style={{
+                    padding: '12px 24px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                    opacity: actionLoading ? 0.7 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!actionLoading) {
+                      e.target.style.background = '#dc2626'
+                      e.target.style.transform = 'translateY(-1px)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!actionLoading) {
+                      e.target.style.background = '#ef4444'
+                      e.target.style.transform = 'translateY(0)'
+                    }
+                  }}
+                >
+                  ❌ Отклонить
                 </button>
               )}
             </div>

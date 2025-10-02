@@ -65,12 +65,24 @@ export async function attachDeliveryPhotos(id, photos) {
   })
 }
 
-export async function sendDeliveryToLab(id) {
-  return await http(`/deliveries/${id}/to-lab`, { method: 'POST' })
+// API методы для ССК - используем правильную ручку /deliveries/{id}/status
+export async function setDeliveryStatus({ id, status, comment }) {
+  return await http(`/deliveries/${id}/status`, { 
+    method: 'POST', 
+    body: JSON.stringify({ status, comment }) 
+  })
 }
 
-export async function acceptDelivery(id) {
-  return await http(`/deliveries/${id}/accept`, { method: 'POST' })
+export async function acceptDelivery({ id, comment = '' }) {
+  return await setDeliveryStatus({ id, status: 'accepted', comment })
+}
+
+export async function rejectDelivery({ id, comment = '' }) {
+  return await setDeliveryStatus({ id, status: 'rejected', comment })
+}
+
+export async function sendDeliveryToLab({ id, comment = '' }) {
+  return await setDeliveryStatus({ id, status: 'sent_to_lab', comment })
 }
 
 // Принятие доставки прорабом (устанавливает статус в "delivered")

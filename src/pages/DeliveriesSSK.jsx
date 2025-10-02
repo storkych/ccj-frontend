@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getDeliveries, sendDeliveryToLab, acceptDelivery } from '../api/deliveries.js'
+import { getDeliveries } from '../api/deliveries.js'
 import { getObjects } from '../api/api.js'
+import DeliveryActionModal from '../components/DeliveryActionModal.jsx'
 
 export default function DeliveriesSSK() {
   const [activeTab, setActiveTab] = useState('current')
   const [deliveries, setDeliveries] = useState([])
   const [objects, setObjects] = useState([])
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(null)
   const [selectedObject, setSelectedObject] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedDelivery, setSelectedDelivery] = useState(null)
+  const [selectedAction, setSelectedAction] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -26,7 +29,7 @@ export default function DeliveriesSSK() {
       // Загружаем поставки в зависимости от активной вкладки
       const params = {}
       if (activeTab === 'current') {
-        params.status = 'delivered,in_lab'
+        params.status = 'delivered,in_lab,accepted,rejected,sent_to_lab'
       }
       if (selectedObject) {
         params.object_id = selectedObject
@@ -42,36 +45,32 @@ export default function DeliveriesSSK() {
     }
   }
 
-  const handleSendToLab = async (deliveryId) => {
-    if (!confirm('Отправить поставку в лабораторию?')) return
-
-    try {
-      setActionLoading(deliveryId)
-      await sendDeliveryToLab(deliveryId)
-      alert('Поставка отправлена в лабораторию')
-      loadData()
-    } catch (error) {
-      console.error('Ошибка отправки в лабораторию:', error)
-      alert('Ошибка при отправке в лабораторию')
-    } finally {
-      setActionLoading(null)
-    }
+  const handleAction = (delivery, action) => {
+    setSelectedDelivery(delivery)
+    setSelectedAction(action)
+    setModalOpen(true)
   }
 
-  const handleAcceptDelivery = async (deliveryId) => {
-    if (!confirm('Принять поставку?')) return
-
-    try {
-      setActionLoading(deliveryId)
-      await acceptDelivery(deliveryId)
-      alert('Поставка принята')
-      loadData()
-    } catch (error) {
-      console.error('Ошибка принятия поставки:', error)
-      alert('Ошибка при принятии поставки')
-    } finally {
-      setActionLoading(null)
-    }
+  const handleActionSuccess = (deliveryId, action) => {
+    // Обновляем статус поставки в списке
+    setDeliveries(prev => prev.map(d => {
+      if (d.id === deliveryId) {
+        let newStatus = d.status
+        switch (action) {
+          case 'accept':
+            newStatus = 'accepted'
+            break
+          case 'reject':
+            newStatus = 'rejected'
+            break
+          case 'send_to_lab':
+            newStatus = 'sent_to_lab'
+            break
+        }
+        return { ...d, status: newStatus }
+      }
+      return d
+    }))
   }
 
   const getStatusInfo = (status) => {
@@ -91,7 +90,9 @@ export default function DeliveriesSSK() {
       case 'accepted':
         return { label: 'Принято ССК', color: '#16a34a' }
       case 'rejected':
-        return { label: 'Отклонено', color: '#ef4444' }
+        return { label: 'Отклонено ССК', color: '#ef4444' }
+      case 'sent_to_lab':
+        return { label: 'Отправлено в лабораторию', color: '#8b5cf6' }
       default:
         return { label: status, color: '#6b7280' }
     }
@@ -231,8 +232,11 @@ export default function DeliveriesSSK() {
             {deliveries.map(delivery => {
               const statusInfo = getStatusInfo(delivery.status)
               const canSendToLab = delivery.status === 'delivered'
-              const canAccept = delivery.status === 'in_lab' || delivery.status === 'delivered'
-              const isLoading = actionLoading === delivery.id
+              const canAccept = delivery.status === 'delivered' || delivery.status === 'in_lab'
+              const canReject = delivery.status === 'delivered' || delivery.status === 'in_lab'
+              
+              // Отладочная информация
+              console.log(`Delivery ${delivery.id}: status=${delivery.status}, canAccept=${canAccept}, canReject=${canReject}`)
               
               return (
                 <div
@@ -344,16 +348,16 @@ export default function DeliveriesSSK() {
                     </div>
 
                     {/* Кнопки действий для актуальных поставок */}
-                    {activeTab === 'current' && (canSendToLab || canAccept) && (
+                    {activeTab === 'current' && (canSendToLab || canAccept || canReject) && (
                       <div style={{
                         display: 'flex',
                         gap: '8px',
-                        marginLeft: '16px'
+                        marginLeft: '16px',
+                        flexWrap: 'wrap'
                       }}>
                         {canSendToLab && (
                           <button
-                            onClick={() => handleSendToLab(delivery.id)}
-                            disabled={isLoading}
+                            onClick={() => handleAction(delivery, 'send_to_lab')}
                             style={{
                               padding: '8px 16px',
                               background: '#8b5cf6',
@@ -362,22 +366,17 @@ export default function DeliveriesSSK() {
                               borderRadius: '6px',
                               fontSize: '12px',
                               fontWeight: '600',
-                              cursor: isLoading ? 'not-allowed' : 'pointer',
-                              opacity: isLoading ? 0.7 : 1,
+                              cursor: 'pointer',
                               transition: 'all 0.2s ease',
                               whiteSpace: 'nowrap'
                             }}
                             onMouseEnter={(e) => {
-                              if (!isLoading) {
-                                e.target.style.background = '#7c3aed'
-                                e.target.style.transform = 'translateY(-1px)'
-                              }
+                              e.target.style.background = '#7c3aed'
+                              e.target.style.transform = 'translateY(-1px)'
                             }}
                             onMouseLeave={(e) => {
-                              if (!isLoading) {
-                                e.target.style.background = '#8b5cf6'
-                                e.target.style.transform = 'translateY(0)'
-                              }
+                              e.target.style.background = '#8b5cf6'
+                              e.target.style.transform = 'translateY(0)'
                             }}
                           >
                             🧪 В лабораторию
@@ -386,8 +385,7 @@ export default function DeliveriesSSK() {
                         
                         {canAccept && (
                           <button
-                            onClick={() => handleAcceptDelivery(delivery.id)}
-                            disabled={isLoading}
+                            onClick={() => handleAction(delivery, 'accept')}
                             style={{
                               padding: '8px 16px',
                               background: '#10b981',
@@ -396,25 +394,48 @@ export default function DeliveriesSSK() {
                               borderRadius: '6px',
                               fontSize: '12px',
                               fontWeight: '600',
-                              cursor: isLoading ? 'not-allowed' : 'pointer',
-                              opacity: isLoading ? 0.7 : 1,
+                              cursor: 'pointer',
                               transition: 'all 0.2s ease',
                               whiteSpace: 'nowrap'
                             }}
                             onMouseEnter={(e) => {
-                              if (!isLoading) {
-                                e.target.style.background = '#059669'
-                                e.target.style.transform = 'translateY(-1px)'
-                              }
+                              e.target.style.background = '#059669'
+                              e.target.style.transform = 'translateY(-1px)'
                             }}
                             onMouseLeave={(e) => {
-                              if (!isLoading) {
-                                e.target.style.background = '#10b981'
-                                e.target.style.transform = 'translateY(0)'
-                              }
+                              e.target.style.background = '#10b981'
+                              e.target.style.transform = 'translateY(0)'
                             }}
                           >
                             ✅ Принять
+                          </button>
+                        )}
+
+                        {canReject && (
+                          <button
+                            onClick={() => handleAction(delivery, 'reject')}
+                            style={{
+                              padding: '8px 16px',
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background = '#dc2626'
+                              e.target.style.transform = 'translateY(-1px)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background = '#ef4444'
+                              e.target.style.transform = 'translateY(0)'
+                            }}
+                          >
+                            ❌ Отклонить
                           </button>
                         )}
                       </div>
@@ -426,6 +447,19 @@ export default function DeliveriesSSK() {
           </div>
         )}
       </div>
+
+      {/* Модальное окно для действий */}
+      <DeliveryActionModal
+        delivery={selectedDelivery}
+        action={selectedAction}
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setSelectedDelivery(null)
+          setSelectedAction(null)
+        }}
+        onSuccess={handleActionSuccess}
+      />
     </div>
   )
 }
