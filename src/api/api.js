@@ -1,6 +1,7 @@
 
 const BASE = import.meta.env.VITE_API_URL || 'https://building-api.itc-hub.ru';
 const AI_BASE = 'https://building-ai.itc-hub.ru';
+const S3_BASE = 'https://building-s3-api.itc-hub.ru';
 
 function getTokens(){
   try { return JSON.parse(localStorage.getItem('ccj_tokens')||'{}') } catch(e){ return {} }
@@ -269,7 +270,13 @@ export async function getViolations(params = {}){
 export async function getViolation(id){
   return await http(`/prescriptions/${id}`)
 }
-export async function createViolation(payload){ return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) }) }
+export async function createViolation(payload){ 
+  return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) }) 
+}
+
+export async function createViolationWithPhotos(payload) {
+  return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) })
+}
 export async function submitViolationReport({ id, text, photos_folder_url, attachments }){
   const body = { comment: text, attachments: attachments || (photos_folder_url ? [photos_folder_url] : []) }
   return await http(`/prescriptions/${id}/fix`, { method:'POST', body: JSON.stringify(body) })
@@ -351,5 +358,49 @@ export async function askObjectQuestion(objectId, question){
   if (!res.ok) throw new Error(`AI API error: ${res.status}`)
   const data = await res.json()
   console.log(`[ai ←]`, ts, 'POST', url, res.status, data)
+  return data
+}
+
+export async function browseViolationFiles(tag, entityId, path = '') {
+  const url = `${S3_BASE}/browse/violation/${tag}/${entityId}${path ? `?path=${encodeURIComponent(path)}` : ''}`
+  const ts = new Date().toISOString()
+  const tokens = getTokens()
+  const headers = { 'Content-Type': 'application/json' }
+  if (tokens.access) headers['Authorization'] = `Bearer ${tokens.access}`
+  
+  try{ console.log(`[s3 →]`, ts, 'GET', url) }catch{ console.log(`[s3 →]`, ts, 'GET', url) }
+  const res = await fetch(url, { 
+    method: 'GET', 
+    headers
+  })
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error(`[s3 ←]`, ts, 'GET', url, res.status, errorText)
+    throw new Error(`S3 API error: ${res.status} - ${errorText}`)
+  }
+  const data = await res.json()
+  console.log(`[s3 ←]`, ts, 'GET', url, res.status, data)
+  return data
+}
+
+export async function browseForemanFiles(foremanId, path = '') {
+  const url = `${S3_BASE}/browse/foreman/${foremanId}${path ? `?path=${encodeURIComponent(path)}` : ''}`
+  const ts = new Date().toISOString()
+  const tokens = getTokens()
+  const headers = { 'Content-Type': 'application/json' }
+  if (tokens.access) headers['Authorization'] = `Bearer ${tokens.access}`
+  
+  try{ console.log(`[s3 →]`, ts, 'GET', url) }catch{ console.log(`[s3 →]`, ts, 'GET', url) }
+  const res = await fetch(url, { 
+    method: 'GET', 
+    headers
+  })
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error(`[s3 ←]`, ts, 'GET', url, res.status, errorText)
+    throw new Error(`S3 API error: ${res.status} - ${errorText}`)
+  }
+  const data = await res.json()
+  console.log(`[s3 ←]`, ts, 'GET', url, res.status, data)
   return data
 }

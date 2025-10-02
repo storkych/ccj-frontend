@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation } from '../api/api.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos } from '../api/api.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -47,6 +47,7 @@ export default function ObjectDetail(){
     requires_personal_recheck: false,
     attachments: []
   })
+  const [violationPhotos, setViolationPhotos] = useState([])
   const [violationSaving, setViolationSaving] = useState(false)
 
   const ChecklistItem = ({ id, text }) => (
@@ -596,13 +597,28 @@ export default function ObjectDetail(){
             if(!violationData.title.trim()) return alert('Заголовок обязателен')
             setViolationSaving(true)
             try{
-              await createViolation({
+              // Конвертируем фотографии в base64
+              const photoAttachments = []
+              if (violationPhotos.length > 0) {
+                for (const photo of violationPhotos) {
+                  const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader()
+                    reader.onload = () => resolve(reader.result)
+                    reader.onerror = reject
+                    reader.readAsDataURL(photo)
+                  })
+                  photoAttachments.push(base64)
+                }
+              }
+              
+              // Создаем нарушение с фотографиями
+              await createViolationWithPhotos({
                 object: obj.id,
                 title: violationData.title,
                 description: violationData.description || undefined,
                 requires_stop: violationData.requires_stop,
                 requires_personal_recheck: violationData.requires_personal_recheck,
-                attachments: violationData.attachments
+                attachments: [...violationData.attachments, ...photoAttachments]
               })
               alert('Нарушение создано')
               setViolationModalOpen(false)
@@ -613,6 +629,7 @@ export default function ObjectDetail(){
                 requires_personal_recheck: false,
                 attachments: []
               })
+              setViolationPhotos([])
             }catch(e){
               alert('Ошибка создания нарушения: ' + (e?.message || ''))
             }finally{
@@ -700,6 +717,53 @@ export default function ObjectDetail(){
                   Добавить вложение
                 </button>
               </div>
+            </div>
+
+            <div style={{marginBottom: 20}}>
+              <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Фотографии нарушения</label>
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*"
+                onChange={e => {
+                  const files = Array.from(e.target.files)
+                  setViolationPhotos(prev => [...prev, ...files])
+                }}
+                style={{width:'100%', padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)', marginBottom: 8}}
+              />
+              <div style={{fontSize: '12px', color: 'var(--muted)', marginBottom: 8}}>
+                Можно выбрать несколько фотографий. Поддерживаются форматы: JPG, PNG, GIF
+              </div>
+              
+              {violationPhotos.length > 0 && (
+                <div style={{display:'flex', flexDirection:'column', gap: 8}}>
+                  {violationPhotos.map((photo, index) => (
+                    <div key={index} className="row" style={{gap: 8, alignItems: 'center', padding: '8px 12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px'}}>
+                      <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: 8}}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                          <circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21,15 16,10 5,21"/>
+                        </svg>
+                        <span style={{fontSize: '14px'}}>{photo.name}</span>
+                        <span style={{fontSize: '12px', color: 'var(--muted)'}}>
+                          ({(photo.size / 1024 / 1024).toFixed(1)} MB)
+                        </span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newPhotos = violationPhotos.filter((_, i) => i !== index)
+                          setViolationPhotos(newPhotos)
+                        }}
+                        style={{padding:'4px 8px', backgroundColor:'var(--red)', color:'white', border:'none', borderRadius:'4px', cursor:'pointer', fontSize: '12px'}}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="row" style={{gap: 12, justifyContent:'flex-end'}}>
