@@ -235,9 +235,6 @@ export default function DeliveriesSSK() {
               const canAccept = delivery.status === 'delivered' || delivery.status === 'in_lab'
               const canReject = delivery.status === 'delivered' || delivery.status === 'in_lab'
               
-              // Отладочная информация
-              console.log(`Delivery ${delivery.id}: status=${delivery.status}, canAccept=${canAccept}, canReject=${canReject}`)
-              
               return (
                 <div
                   key={delivery.id}
