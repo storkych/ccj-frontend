@@ -59,6 +59,8 @@ export async function getObjects({ mine, status } = {}){
 export async function getObject(id){ return await http(`/objects/${id}`) }
 export async function patchObject(id, patch){ return await http(`/objects/${id}`, { method:'PATCH', body: JSON.stringify(patch) }) }
 export async function requestActivation(id){ return await http(`/objects/${id}/activation/request`, { method:'POST' }) }
+export async function completeObjectBySSK(id){ return await http(`/objects/${id}/complete-by-ssk`, { method:'POST' }) }
+export async function completeObjectByIKO(id){ return await http(`/objects/${id}/complete`, { method:'POST' }) }
 export async function ikoActivationCheck(id, checklistData){ return await http(`/objects/${id}/activation/iko-check`, { method:'POST', body: JSON.stringify(checklistData) }) }
 export async function suspendObject(id, payload){ return await http(`/objects/${id}/suspend`, { method:'POST', body: JSON.stringify(payload||{}) }) }
 export async function resumeObject(id){ return await http(`/objects/${id}/resume`, { method:'POST' }) }

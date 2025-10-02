@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos } from '../api/api.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO } from '../api/api.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -176,6 +176,7 @@ export default function ObjectDetail(){
       'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
       'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
       'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
+      'completed_by_ssk': { label: 'Завершён ССК', color: '#7c3aed', bgColor: '#f3e8ff' },
       'completed': { label: 'Завершён', color: '#1d4ed8', bgColor: '#eff6ff' }
     }
     return statusMap[status] || { label: status || '—', color: '#6b7280', bgColor: '#f9fafb' }
@@ -184,281 +185,1046 @@ export default function ObjectDetail(){
   const statusInfo = getStatusInfo(obj?.status)
 
   return (
-    <div className="grid">
-      <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-        <h2 style={{margin:0}}>{obj.name}</h2>
-        <div className="row" style={{gap:8, alignItems:'center'}}>
-          <div style={{
-            padding:'6px 12px',
-            backgroundColor: statusInfo.bgColor,
-            color: statusInfo.color,
-            borderRadius:'8px',
-            fontSize:'14px',
-            fontWeight:'600',
-            border: `1px solid ${statusInfo.color}30`
-          }}>
-            {statusInfo.label}
+    <div className="page">
+      {/* Заголовок и основная информация */}
+      <div style={{marginBottom: '32px'}}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '24px'
+        }}>
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              marginBottom: '8px'
+            }}>
+              <h1 style={{
+                margin: 0,
+                fontSize: '28px',
+                fontWeight: '700',
+                color: 'var(--text)'
+              }}>
+                {obj.name}
+              </h1>
+              <div style={{
+                padding: '8px 16px',
+                backgroundColor: statusInfo.bgColor,
+                color: statusInfo.color,
+                borderRadius: '12px',
+                fontSize: '14px',
+                fontWeight: '600',
+                border: `1px solid ${statusInfo.color}30`
+              }}>
+                {statusInfo.label}
+              </div>
+            </div>
+            <p style={{
+              margin: 0,
+              color: 'var(--muted)',
+              fontSize: '16px'
+            }}>
+              {obj.address}
+            </p>
           </div>
+        </div>
+
+        {/* Панель действий */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '24px'
+        }}>
+          {/* Действия ССК */}
           {user?.role === 'ssk' && (!obj.ssk || !obj.foreman || workPlans.length === 0 || (obj.areas?.length||0) === 0 || (obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko)) && (
-            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px'}}>
-              <div className="row" style={{gap:6}}>
-                {!obj.ssk && <button className="btn small" onClick={async()=>{ 
-                  try{
-                    const u = await patchObject(obj.id, { ssk_id: user.id }); 
-                    setObj(u);
-                    alert('Вы стали ответственным за объект')
-                  }catch(e){
-                    alert('Ошибка: ' + (e?.message || ''))
-                  }
-                }}>Стать ответственным</button>}
-                {!obj.foreman && <button className="btn small" onClick={openAssign}>Назначить прораба</button>}
-                {workPlans.length === 0 && <button className="btn small" onClick={()=>location.assign(`/work-plans/new/${id}`)}>Добавить график работ</button>}
-                {(obj.areas?.length||0) === 0 && <button className="btn small" onClick={()=>setAreaModalOpen(true)}>Создать полигон</button>}
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              minWidth: '200px'
+            }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <h4 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: 'var(--text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  Действия ССК
+                </h4>
+                <div style={{
+                  display: 'flex',
+                  gap: '6px',
+                  flexWrap: 'wrap'
+                }}>
+                {!obj.ssk && (
+                  <button 
+                    className="btn small" 
+                    onClick={async()=>{ 
+                      try{
+                        const u = await patchObject(obj.id, { ssk_id: user.id }); 
+                        setObj(u);
+                        alert('Вы стали ответственным за объект')
+                      }catch(e){
+                        alert('Ошибка: ' + (e?.message || ''))
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Стать ответственным
+                  </button>
+                )}
+          {!obj.foreman && (
+                  <button 
+                    className="btn small" 
+                    onClick={openAssign}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Назначить прораба
+                  </button>
+                )}
+                {workPlans.length === 0 && (
+                  <button 
+                    className="btn small" 
+                    onClick={()=>location.assign(`/work-plans/new/${id}`)}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Добавить график работ
+                  </button>
+                )}
+                {(obj.areas?.length||0) === 0 && (
+                  <button 
+                    className="btn small" 
+                    onClick={()=>setAreaModalOpen(true)}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Создать полигон
+                  </button>
+                )}
                 {obj.ssk && obj.foreman && workPlans.length > 0 && (obj.areas?.length||0) > 0 && !obj.iko && (
-                  <button className="btn small" onClick={async()=>{ 
+                  <button 
+                    className="btn small" 
+                    onClick={async()=>{ 
+                      try{
+                        await requestActivation(obj.id);
+                        alert('Запрос на активацию отправлен')
+                        // Обновляем объект после активации
+                        const updated = await getObject(id);
+                        setObj(updated);
+                      }catch(e){
+                        alert('Ошибка активации: ' + (e?.message || ''))
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      background: '#22c55e',
+                      color: 'white',
+                      border: 'none'
+                    }}
+                  >
+                    Активировать
+                  </button>
+                )}
+                <button 
+                  className="btn small" 
+                  onClick={()=>setViolationModalOpen(true)}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Выписать нарушение
+                </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Кнопка завершения для ССК */}
+          {console.log('ССК завершение - роль:', user?.role, 'статус:', obj.status, 'прогресс:', obj.work_progress, 'тип прогресса:', typeof obj.work_progress) || user?.role === 'ssk' && obj.status === 'active' && Number(obj.work_progress ?? 0) === 100 && (
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <h4 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: 'var(--text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 12l2 2 4-4"/>
+                    <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.98"/>
+                  </svg>
+                  Завершение объекта
+                </h4>
+                <button 
+                  className="btn small" 
+                  onClick={async()=>{ 
                     try{
-                      await requestActivation(obj.id);
-                      alert('Запрос на активацию отправлен')
-                      // Обновляем объект после активации
+                      await completeObjectBySSK(obj.id);
+                      alert('Объект завершён ССК')
+                      // Обновляем объект после завершения
                       const updated = await getObject(id);
                       setObj(updated);
                     }catch(e){
-                      alert('Ошибка активации: ' + (e?.message || ''))
+                      alert('Ошибка завершения: ' + (e?.message || ''))
                     }
-                  }}>Активировать</button>
-                )}
-                <button className="btn small" onClick={()=>setViolationModalOpen(true)}>Выписать нарушение</button>
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    background: '#7c3aed',
+                    color: 'white',
+                    border: 'none'
+                  }}
+                >
+                  Завершить объект
+                </button>
               </div>
             </div>
           )}
           {user?.role === 'iko' && obj.status === 'activation_pending' && (
-            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px'}}>
-              <div className="row" style={{gap:6}}>
-                <button className="btn small" onClick={()=>setActivationModalOpen(true)}>Активировать объект</button>
-              </div>
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+            }}>
+              <button 
+                className="btn small" 
+                onClick={()=>setActivationModalOpen(true)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  background: '#22c55e',
+                  color: 'white',
+                  border: 'none'
+                }}
+              >
+                Активировать объект
+              </button>
+            </div>
+          )}
+          {user?.role === 'iko' && obj.status === 'completed_by_ssk' && (
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+            }}>
+              <button 
+                className="btn small" 
+                onClick={async()=>{ 
+                  try{
+                    await completeObjectByIKO(obj.id);
+                    alert('Объект полностью завершён')
+                    // Обновляем объект после завершения
+                    const updated = await getObject(id);
+                    setObj(updated);
+                  }catch(e){
+                    alert('Ошибка завершения: ' + (e?.message || ''))
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  background: '#1d4ed8',
+                  color: 'white',
+                  border: 'none'
+                }}
+              >
+                Завершить
+              </button>
             </div>
           )}
           {(user?.role === 'ssk' || user?.role === 'iko') && (
-            <div style={{padding:'8px 12px', backgroundColor:'var(--panel)', border:'1px solid var(--border)', borderRadius:'8px', marginTop: 8}}>
-              <button className="btn" onClick={()=>setViolationModalOpen(true)}>Выписать нарушение</button>
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              marginTop: '8px'
+            }}>
+              <button 
+                className="btn" 
+                onClick={()=>setViolationModalOpen(true)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: '500'
+                }}
+              >
+                Выписать нарушение
+              </button>
             </div>
           )}
         </div>
       </div>
       
-      <section className="card">
-        <div className="row" style={{justifyContent:'space-between', alignItems:'flex-start', marginBottom:16}}>
-          <div style={{display:'flex', flexDirection:'column', gap:12, flex:1}}>
-            <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              <div style={{padding:'6px 10px', backgroundColor:'var(--bg-light)', border:'1px solid var(--border)', borderRadius:'6px', fontSize:'14px', color:'var(--text)', fontWeight:'500'}}>
-                📍 {obj.address}
-              </div>
-              <div className="row" style={{gap:8, flexWrap:'wrap'}}>
-                <div style={{
-                  padding:'4px 8px', 
-                  backgroundColor: obj.iko ? '#f0fdf4' : '#fefce8', 
-                  border: `1px solid ${obj.iko ? '#22c55e' : '#eab308'}`, 
-                  borderRadius:'6px', 
-                  fontSize:'13px', 
-                  color: obj.iko ? '#15803d' : '#a16207', 
-                  fontWeight:'500'
-                }}>
-                  ИКО: {obj.iko?.full_name || obj.iko?.email || '—'}
-                </div>
-                <div style={{
-                  padding:'4px 8px', 
-                  backgroundColor: obj.ssk ? '#f0fdf4' : '#fefce8', 
-                  border: `1px solid ${obj.ssk ? '#22c55e' : '#eab308'}`, 
-                  borderRadius:'6px', 
-                  fontSize:'13px', 
-                  color: obj.ssk ? '#15803d' : '#a16207', 
-                  fontWeight:'500'
-                }}>
-                  ССК: {obj.ssk?.full_name || obj.ssk?.email || '—'}
-                </div>
-                <div style={{
-                  padding:'4px 8px', 
-                  backgroundColor: obj.foreman ? '#f0fdf4' : '#fefce8', 
-                  border: `1px solid ${obj.foreman ? '#22c55e' : '#eab308'}`, 
-                  borderRadius:'6px', 
-                  fontSize:'13px', 
-                  color: obj.foreman ? '#15803d' : '#a16207', 
-                  fontWeight:'500'
-                }}>
-                  Прораб: {obj.foreman?.full_name || obj.foreman?.email || '—'}
-                </div>
-              </div>
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
+        <h3 style={{
+          margin: '0 0 20px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: 'var(--text)'
+        }}>
+          Информация об объекте
+        </h3>
+        
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: obj.iko ? '#f0fdf4' : '#fefce8',
+              border: `1px solid ${obj.iko ? '#22c55e' : '#eab308'}`,
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: obj.iko ? '#15803d' : '#a16207',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span style={{fontWeight: '600'}}>ИКО:</span>
+              {obj.iko?.full_name || obj.iko?.email || '—'}
             </div>
-            
-            <div style={{marginTop:8}}>
-              <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:4}}>
-                <span style={{fontSize:'14px', fontWeight:'500', color:'var(--text)'}}>Прогресс выполнения</span>
-                <span style={{fontSize:'14px', fontWeight:'600', color:'var(--text)'}}>{obj.work_progress ?? 0}%</span>
-              </div>
-              <Progress value={obj.work_progress ?? 0} />
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: obj.ssk ? '#f0fdf4' : '#fefce8',
+              border: `1px solid ${obj.ssk ? '#22c55e' : '#eab308'}`,
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: obj.ssk ? '#15803d' : '#a16207',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span style={{fontWeight: '600'}}>ССК:</span>
+              {obj.ssk?.full_name || obj.ssk?.email || '—'}
+            </div>
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: obj.foreman ? '#f0fdf4' : '#fefce8',
+              border: `1px solid ${obj.foreman ? '#22c55e' : '#eab308'}`,
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: obj.foreman ? '#15803d' : '#a16207',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span style={{fontWeight: '600'}}>Прораб:</span>
+              {obj.foreman?.full_name || obj.foreman?.email || '—'}
             </div>
           </div>
           
+          <div style={{
+            background: 'var(--bg-light)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px'
+            }}>
+              <span style={{
+                fontSize: '16px',
+                fontWeight: '600',
+                color: 'var(--text)'
+              }}>
+                Прогресс выполнения
+              </span>
+              <span style={{
+                fontSize: '16px',
+                fontWeight: '700',
+                color: 'var(--brand)'
+              }}>
+                {obj.work_progress ?? 0}%
+          </span>
+            </div>
+            <div style={{
+              width: '100%',
+              height: '12px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '6px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${obj.work_progress ?? 0}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, var(--brand), #ffb454)',
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+          </div>
         </div>
         
-        <div className="row" style={{gap:8, marginTop:16, flexWrap:'wrap'}}>
-          <span className={'status '+((obj.violations_open||0)>0?'red':'green')}>
-            Нарушения: {obj.violations_open ?? 0} активных из {obj.violations_total ?? 0}
-          </span>
-          {obj.visits && <span className="pill">Посещения ССК/ИКО/прораб: {obj.visits?.ssk ?? 0}/{obj.visits?.iko ?? 0}/{obj.visits?.foreman ?? 0}</span>}
-          {obj.deliveries_today!=null && <span className="pill">Поставки сегодня: {obj.deliveries_today}</span>}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          marginTop: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{
+            padding: '8px 12px',
+            backgroundColor: (obj.violations_open||0) > 0 ? '#fef2f2' : '#f0fdf4',
+            border: `1px solid ${(obj.violations_open||0) > 0 ? '#fecaca' : '#bbf7d0'}`,
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: (obj.violations_open||0) > 0 ? '#dc2626' : '#16a34a',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+            </svg>
+            <span style={{fontWeight: '600'}}>Нарушения:</span>
+            {obj.violations_open ?? 0} активных из {obj.violations_total ?? 0}
+          </div>
+          {obj.visits && (
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: 'var(--text)',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9,22 9,12 15,12 15,22"/>
+              </svg>
+              <span style={{fontWeight: '600'}}>Посещения:</span>
+              ССК: {obj.visits?.ssk ?? 0} | ИКО: {obj.visits?.iko ?? 0} | Прораб: {obj.visits?.foreman ?? 0}
+            </div>
+          )}
+          {obj.deliveries_today != null && (
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              fontSize: '14px',
+              color: 'var(--text)',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 3h5v5"/>
+                <path d="M8 3H3v5"/>
+                <path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/>
+                <path d="M21 3l-7.828 7.828A4 4 0 0 0 12 13.172V22"/>
+              </svg>
+              <span style={{fontWeight: '600'}}>Поставки сегодня:</span>
+              {obj.deliveries_today}
+            </div>
+          )}
         </div>
-        <div className="row" style={{gap:8, marginTop:8, flexWrap:'wrap'}}>
-          {obj.polygonId!=null && <span className="pill">Полигон: {obj.polygonId}</span>}
-          {obj.ai_flag!=null && <span className="pill">AI: {obj.ai_flag}</span>}
-        </div>
-      </section>
+      </div>
 
       {(obj.areas && obj.areas.length > 0) && (
-        <section className="card">
-          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
-            <h3 style={{marginTop:0}}>Геозона объекта</h3>
-            <span className="muted">Просмотр полигона</span>
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '20px',
+              fontWeight: '600',
+              color: 'var(--text)'
+            }}>
+              Геозона объекта
+            </h3>
+            <div style={{
+              padding: '6px 12px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: 'var(--muted)',
+              fontWeight: '500'
+            }}>
+              Просмотр полигона
+            </div>
           </div>
-          <div style={{marginTop:8}}>
+          <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            overflow: 'hidden'
+          }}>
             <AreaMap
               readOnly
               polygons={(obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name }))}
             />
           </div>
-        </section>
+        </div>
       )}
 
-      <section className="card">
-        <h3 style={{marginTop:0}}>Рабочие планы</h3>
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
+        <h3 style={{
+          margin: '0 0 20px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: 'var(--text)'
+        }}>
+          Рабочие планы
+        </h3>
         {workPlansLoading ? (
-          <div className="muted">Загрузка планов...</div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 20px',
+            color: 'var(--muted)'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid var(--border)',
+              borderTop: '3px solid var(--brand)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginRight: '16px'
+            }} />
+            Загрузка планов...
+          </div>
         ) : workPlans.length > 0 ? (
-          <div style={{display:'flex', flexDirection:'column', gap:12}}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '16px'
+          }}>
             {workPlans.map(plan => (
-              <div key={plan.id} style={{padding:12, border:'1px solid var(--border)', borderRadius:8, backgroundColor:'var(--bg-light)'}}>
-                <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
-                  <h4 style={{margin:0, fontSize:'16px'}}>{plan.title || `План #${plan.id}`}</h4>
-                  <span className="pill" style={{fontSize:'12px'}}>
+              <div key={plan.id} style={{
+                padding: '16px',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-light)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.borderColor = 'var(--brand)'
+                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.borderColor = 'var(--border)'
+                e.target.style.boxShadow = 'none'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '12px'
+                }}>
+                  <h4 style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: 'var(--text)'
+                  }}>
+                    {plan.title || `План #${plan.id}`}
+                  </h4>
+                  <div style={{
+                    padding: '4px 8px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: 'var(--muted)',
+                    fontWeight: '500'
+                  }}>
                     {new Date(plan.created_at).toLocaleDateString('ru-RU')}
-                  </span>
+                  </div>
                 </div>
-                <div className="row" style={{gap:8, flexWrap:'wrap'}}>
-                  <span className="pill">ID: {plan.id}</span>
-                  <span className="pill">UUID: {plan.uuid_wp}</span>
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                }}>
+                  <span style={{
+                    padding: '4px 8px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    color: 'var(--muted)',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    ID: {plan.id}
+                  </span>
                   {plan.versions && plan.versions.length > 0 && (
-                    <span className="pill">Версий: {plan.versions.length}</span>
+                    <span style={{
+                      padding: '4px 8px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--muted)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500'
+                    }}>
+                      Версий: {plan.versions.length}
+                    </span>
                   )}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="muted">Рабочие планы не найдены</div>
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: 'var(--muted)'
+          }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '24px'
+            }}>
+              📋
+            </div>
+            <h4 style={{
+              margin: '0 0 8px 0',
+              color: 'var(--text)',
+              fontSize: '16px',
+              fontWeight: '600'
+            }}>
+              Рабочие планы не найдены
+            </h4>
+            <p style={{
+              margin: 0,
+              fontSize: '14px'
+            }}>
+              Для этого объекта пока нет созданных рабочих планов
+            </p>
+          </div>
         )}
-      </section>
+      </div>
 
       {/* Элементы работ */}
       {workPlanDetails && workPlanDetails.work_items && workPlanDetails.work_items.length > 0 && (
-        <section className="card">
-          <h3 style={{marginTop:0}}>Элементы работ ({workPlanDetails.work_items.length})</h3>
-          <table className="table" style={{marginTop:12}}>
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Количество</th>
-                <th>Единица</th>
-                <th>Начало</th>
-                <th>Окончание</th>
-                <th>Статус</th>
-                <th>Документ</th>
-                {user?.role === 'ssk' && <th>Действия</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {workPlanDetails.work_items.map((item, idx) => (
-                <tr key={item.id || idx}>
-                  <td>{item.name}</td>
-                  <td>{item.quantity || '—'}</td>
-                  <td>{item.unit || '—'}</td>
-                  <td>{item.start_date ? new Date(item.start_date).toLocaleDateString('ru-RU') : '—'}</td>
-                  <td>{item.end_date ? new Date(item.end_date).toLocaleDateString('ru-RU') : '—'}</td>
-                  <td>
-                    <span className={`pill status-${item.status}`}>
-                      {item.status === 'planned' ? 'Запланировано' : 
-                       item.status === 'in_progress' ? 'В работе' : 
-                       item.status === 'done' ? 'Выполнено' : item.status}
-                    </span>
-                  </td>
-                  <td>
-                    {item.document_url ? (
-                      <a href={item.document_url} target="_blank" rel="noopener noreferrer" className="btn small">
-                        Открыть
-                      </a>
-                    ) : '—'}
-                  </td>
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{
+            margin: '0 0 20px 0',
+            fontSize: '20px',
+            fontWeight: '600',
+            color: 'var(--text)'
+          }}>
+            Элементы работ ({workPlanDetails.work_items.length})
+          </h3>
+          <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            overflow: 'hidden'
+          }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '14px'
+            }}>
+              <thead>
+                <tr style={{
+                  background: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border)'
+                }}>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Название
+                  </th>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Количество
+                  </th>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Единица
+                  </th>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Период
+                  </th>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Статус
+                  </th>
+                  <th style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    fontWeight: '600',
+                    color: 'var(--text)',
+                    fontSize: '13px'
+                  }}>
+                    Документ
+                  </th>
                   {user?.role === 'ssk' && (
-                    <td>
-                      <div className="row" style={{gap:4}}>
-                        {item.status !== 'in_progress' && item.status !== 'done' && (
-                          <button 
-                            className="btn small" 
-                            disabled={updatingItems.has(item.id)}
-                            onClick={async () => {
-                              setUpdatingItems(prev => new Set(prev).add(item.id))
-                              try {
-                                await updateWorkItemStatus(item.id, 'in_progress')
-                                const updated = await getWorkPlan(workPlanDetails.id)
-                                setWorkPlanDetails(updated)
-                              } catch (e) {
-                                alert('Ошибка обновления статуса: ' + (e?.message || ''))
-                              } finally {
-                                setUpdatingItems(prev => {
-                                  const next = new Set(prev)
-                                  next.delete(item.id)
-                                  return next
-                                })
-                              }
-                            }}
-                          >
-                            {updatingItems.has(item.id) ? '...' : 'Начать'}
-                          </button>
-                        )}
-                        {item.status === 'in_progress' && (
-                          <button 
-                            className="btn small" 
-                            disabled={updatingItems.has(item.id)}
-                            onClick={async () => {
-                              setUpdatingItems(prev => new Set(prev).add(item.id))
-                              try {
-                                await updateWorkItemStatus(item.id, 'done')
-                                const updated = await getWorkPlan(workPlanDetails.id)
-                                setWorkPlanDetails(updated)
-                              } catch (e) {
-                                alert('Ошибка обновления статуса: ' + (e?.message || ''))
-                              } finally {
-                                setUpdatingItems(prev => {
-                                  const next = new Set(prev)
-                                  next.delete(item.id)
-                                  return next
-                                })
-                              }
-                            }}
-                          >
-                            {updatingItems.has(item.id) ? '...' : 'Завершить'}
-                          </button>
-                        )}
-                        {item.status === 'done' && (
-                          <span className="pill status-done">Выполнено</span>
-                        )}
-                      </div>
-                    </td>
+                    <th style={{
+                      padding: '12px 16px',
+                      textAlign: 'left',
+                      fontWeight: '600',
+                      color: 'var(--text)',
+                      fontSize: '13px'
+                    }}>
+                      Действия
+                    </th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+              </thead>
+              <tbody>
+                {workPlanDetails.work_items.map((item, idx) => (
+                  <tr key={item.id || idx} style={{
+                    borderBottom: '1px solid var(--border)',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'var(--bg-light)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'transparent'
+                  }}>
+                    <td style={{
+                      padding: '12px 16px',
+                      color: 'var(--text)',
+                      fontWeight: '500'
+                    }}>
+                      {item.name}
+                    </td>
+                    <td style={{
+                      padding: '12px 16px',
+                      color: 'var(--text)'
+                    }}>
+                      {item.quantity || '—'}
+                    </td>
+                    <td style={{
+                      padding: '12px 16px',
+                      color: 'var(--muted)',
+                      fontSize: '13px'
+                    }}>
+                      {item.unit || '—'}
+                    </td>
+                    <td style={{
+                      padding: '12px 16px',
+                      color: 'var(--text)',
+                      fontSize: '13px'
+                    }}>
+                      {item.start_date && item.end_date ? (
+                        <div>
+                          <div>{new Date(item.start_date).toLocaleDateString('ru-RU')}</div>
+                          <div style={{color: 'var(--muted)', fontSize: '12px'}}>
+                            до {new Date(item.end_date).toLocaleDateString('ru-RU')}
+                          </div>
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td style={{
+                      padding: '12px 16px'
+                    }}>
+                      <span style={{
+                        background: item.status === 'planned' ? '#fef3c7' : 
+                                   item.status === 'in_progress' ? '#dbeafe' : 
+                                   item.status === 'done' ? '#d1fae5' : 'var(--bg-secondary)',
+                        color: item.status === 'planned' ? '#92400e' : 
+                              item.status === 'in_progress' ? '#1e40af' : 
+                              item.status === 'done' ? '#065f46' : 'var(--muted)',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '500'
+                      }}>
+                        {item.status === 'planned' ? 'Запланировано' : 
+                         item.status === 'in_progress' ? 'В работе' : 
+                         item.status === 'done' ? 'Выполнено' : item.status}
+                      </span>
+                    </td>
+                    <td style={{
+                      padding: '12px 16px'
+                    }}>
+                      {item.document_url ? (
+                        <a 
+                          href={item.document_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="btn small"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            textDecoration: 'none'
+                          }}
+                        >
+                          Открыть
+                        </a>
+                      ) : (
+                        <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
+                      )}
+                    </td>
+                    {user?.role === 'ssk' && (
+                      <td style={{
+                        padding: '12px 16px'
+                      }}>
+                        <div style={{display: 'flex', gap: '6px'}}>
+                          {item.status !== 'in_progress' && item.status !== 'done' && (
+                            <button 
+                              className="btn small" 
+                              disabled={updatingItems.has(item.id)}
+                              onClick={async () => {
+                                setUpdatingItems(prev => new Set(prev).add(item.id))
+                                try {
+                                  await updateWorkItemStatus(item.id, 'in_progress')
+                                  const updated = await getWorkPlan(workPlanDetails.id)
+                                  setWorkPlanDetails(updated)
+                                } catch (e) {
+                                  alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                } finally {
+                                  setUpdatingItems(prev => {
+                                    const next = new Set(prev)
+                                    next.delete(item.id)
+                                    return next
+                                  })
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s ease',
+                                opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                boxShadow: 'none'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!updatingItems.has(item.id)) {
+                                  e.target.style.background = '#e67e00'
+                                  e.target.style.transform = 'translateY(-1px)'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!updatingItems.has(item.id)) {
+                                  e.target.style.background = '#ff8a00'
+                                  e.target.style.transform = 'translateY(0)'
+                                }
+                              }}
+                            >
+                              {updatingItems.has(item.id) ? '...' : 'Начать'}
+                            </button>
+                          )}
+                          {item.status === 'in_progress' && (
+                            <button 
+                              className="btn small" 
+                              disabled={updatingItems.has(item.id)}
+                              onClick={async () => {
+                                setUpdatingItems(prev => new Set(prev).add(item.id))
+                                try {
+                                  await updateWorkItemStatus(item.id, 'done')
+                                  const updated = await getWorkPlan(workPlanDetails.id)
+                                  setWorkPlanDetails(updated)
+                                } catch (e) {
+                                  alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                } finally {
+                                  setUpdatingItems(prev => {
+                                    const next = new Set(prev)
+                                    next.delete(item.id)
+                                    return next
+                                  })
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                fontWeight: '500',
+                                transition: 'all 0.2s ease',
+                                opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                boxShadow: 'none'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!updatingItems.has(item.id)) {
+                                  e.target.style.background = '#16a34a'
+                                  e.target.style.transform = 'translateY(-1px)'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!updatingItems.has(item.id)) {
+                                  e.target.style.background = '#22c55e'
+                                  e.target.style.transform = 'translateY(0)'
+                                }
+                              }}
+                            >
+                              {updatingItems.has(item.id) ? '...' : 'Завершить'}
+                            </button>
+                          )}
+                          {item.status === 'done' && (
+                            <span style={{
+                              background: '#d1fae5',
+                              color: '#065f46',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}>
+                              Выполнено
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <section className="card">
@@ -612,14 +1378,21 @@ export default function ObjectDetail(){
               }
               
               // Создаем нарушение с фотографиями
-              await createViolationWithPhotos({
+              const payload = {
                 object: obj.id,
                 title: violationData.title,
-                description: violationData.description || undefined,
                 requires_stop: violationData.requires_stop,
                 requires_personal_recheck: violationData.requires_personal_recheck,
-                attachments: [...violationData.attachments, ...photoAttachments]
-              })
+                violation_photos: photoAttachments
+              }
+              
+              // Добавляем description только если он не пустой
+              if (violationData.description && violationData.description.trim()) {
+                payload.description = violationData.description.trim()
+              }
+              
+              console.log('Отправляем данные нарушения:', payload)
+              await createViolationWithPhotos(payload)
               alert('Нарушение создано')
               setViolationModalOpen(false)
               setViolationData({
