@@ -97,7 +97,7 @@ function Layout({ children }){
       
       <aside>
         <div className="logo">
-          <img src="/src/assets/logo.svg" alt="СтройКонтроль" style={{width: 40, height: 40}} />
+          <img src="/logo.svg" alt="СтройКонтроль" style={{width: 40, height: 40}} />
           <div className="hide-compact">СтройКонтроль</div>
         </div>
         <nav className="nav">
