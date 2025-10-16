@@ -14,21 +14,36 @@ export function AuthProvider({ children }) {
 
     // Логин через реальный бэк: /auth/login (+ /users/me)
     const login = async (email, password) => {
-        const api = await import('../api/api.js') // у нас тут теперь реальный API-клиент
-        const loginRes = await api.apiLogin({ email, password })
-        let profile = loginRes && loginRes.user
-        if (!profile) {
-            try { profile = await api.apiMe() } catch (e) {}
+        try {
+            const api = await import('../api/api.js')
+            const loginRes = await api.apiLogin({ email, password })
+            
+            if (!loginRes || !loginRes.access) {
+                throw new Error('Неверный email или пароль')
+            }
+            
+            let profile = loginRes && loginRes.user
+            if (!profile) {
+                try { 
+                    profile = await api.apiMe() 
+                } catch (e) {
+                    console.warn('Не удалось получить профиль пользователя:', e)
+                }
+            }
+            
+            const data = {
+                id: profile?.id || 'me',
+                role: profile?.role || 'foreman',
+                email: profile?.email || email,
+                full_name: profile?.full_name || profile?.name || email,
+            }
+            localStorage.setItem('ccj_user', JSON.stringify(data))
+            setUser(data)
+            return data
+        } catch (error) {
+            // Пробрасываем ошибку с понятным сообщением
+            throw error
         }
-        const data = {
-            id: profile?.id || 'me',
-            role: profile?.role || 'foreman',
-            email: profile?.email || email,
-            full_name: profile?.full_name || profile?.name || email,
-        }
-        localStorage.setItem('ccj_user', JSON.stringify(data))
-        setUser(data)
-        return data
     }
 
     // Выход: /auth/logout + чистка локального состояния

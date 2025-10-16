@@ -28,6 +28,17 @@ export async function http(path, { method='GET', headers={}, body, retry=true } 
   if (!res.ok){
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
     console.warn(`[api ←]`, method, url, res.status, txt)
+    
+    // Пытаемся распарсить JSON ошибку для получения детального сообщения
+    try {
+      const errorData = JSON.parse(txt)
+      if (errorData.detail) {
+        throw new Error(errorData.detail)
+      }
+    } catch (parseError) {
+      // Если не удалось распарсить как JSON, используем текст как есть
+    }
+    
     throw new Error(txt || `HTTP ${res.status}`)
   }
   const ct = res.headers.get('content-type')||''
@@ -37,9 +48,27 @@ export async function http(path, { method='GET', headers={}, body, retry=true } 
 }
 
 export async function apiLogin({ email, password }){
-  const data = await http('/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
-  if (data.access) setTokens({ access: data.access, refresh: data.refresh })
-  return data
+  try {
+    const data = await http('/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
+    if (data.access) setTokens({ access: data.access, refresh: data.refresh })
+    return data
+  } catch (error) {
+    // Обработка специфических ошибок авторизации
+    if (error.message.includes('Invalid credentials') || 
+        error.message.includes('401') || 
+        error.message.includes('Unauthorized')) {
+      throw new Error('Неверный email или пароль')
+    } else if (error.message.includes('422')) {
+      throw new Error('Некорректные данные. Проверьте формат email')
+    } else if (error.message.includes('429')) {
+      throw new Error('Слишком много попыток входа. Попробуйте позже')
+    } else if (error.message.includes('500')) {
+      throw new Error('Ошибка сервера. Попробуйте позже')
+    } else if (error.message.includes('Network') || error.message.includes('fetch')) {
+      throw new Error('Ошибка сети. Проверьте подключение к интернету')
+    }
+    throw error
+  }
 }
 export async function apiLogout(){
   const tokens = getTokens()
