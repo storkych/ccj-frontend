@@ -17,7 +17,6 @@ export default function Login(){
     setLoading(true)
     setError('')
     
-    // Валидация полей
     if (!email.trim()) {
       setError('Введите email')
       setLoading(false)
@@ -57,6 +56,20 @@ export default function Login(){
     }
   }
 
+  const quickLogin = async (testEmail) => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      await login(testEmail, '111')
+      nav(from, { replace: true })
+    } catch (err) {
+      setError('Ошибка быстрого входа')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div style={{
       display: 'grid', 
@@ -76,7 +89,7 @@ export default function Login(){
           textAlign: 'center',
           marginBottom: '24px'
         }}>
-          <img src="/src/assets/logo.svg" alt="ITC СтройКонтроль" style={{
+          <img src="/transparent bg.svg" alt="ITC СтройКонтроль" style={{
             width: 48,
             height: 48,
             marginBottom: '16px'
@@ -168,6 +181,124 @@ export default function Login(){
           >
             {loading ? 'Входим…' : 'Войти'}
           </button>
+        </div>
+
+        <div style={{
+          marginTop: '24px',
+          paddingTop: '24px',
+          borderTop: '1px solid var(--border)'
+        }}>
+          <p style={{
+            margin: '0 0 16px 0',
+            fontSize: '14px',
+            color: 'var(--muted)',
+            textAlign: 'center'
+          }}>Тестовые аккаунты (отладка)</p>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <button
+              type="button"
+              onClick={() => quickLogin('foreman@itc.ru')}
+              disabled={loading}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: loading ? 0.6 : 1
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--brand)'
+                  e.target.style.color = 'white'
+                  e.target.style.transform = 'translateY(-1px)'
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--bg-secondary)'
+                  e.target.style.color = 'var(--text)'
+                  e.target.style.transform = 'translateY(0)'
+                }
+              }}
+            >
+              ПРОРАБ (foreman@itc.ru)
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => quickLogin('iko@itc.ru')}
+              disabled={loading}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: loading ? 0.6 : 1
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--brand)'
+                  e.target.style.color = 'white'
+                  e.target.style.transform = 'translateY(-1px)'
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--bg-secondary)'
+                  e.target.style.color = 'var(--text)'
+                  e.target.style.transform = 'translateY(0)'
+                }
+              }}
+            >
+              ИКО (iko@itc.ru)
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => quickLogin('ssk@itc.ru')}
+              disabled={loading}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: loading ? 0.6 : 1
+              }}
+              onMouseOver={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--brand)'
+                  e.target.style.color = 'white'
+                  e.target.style.transform = 'translateY(-1px)'
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!loading) {
+                  e.target.style.background = 'var(--bg-secondary)'
+                  e.target.style.color = 'var(--text)'
+                  e.target.style.transform = 'translateY(0)'
+                }
+              }}
+            >
+              ССК (ssk@itc.ru)
+            </button>
+          </div>
         </div>
       </form>
     </div>

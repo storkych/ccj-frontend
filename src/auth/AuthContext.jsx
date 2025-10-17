@@ -51,7 +51,6 @@ export function AuthProvider({ children }) {
         setUser(null)
     }
 
-    // Функция для принудительного выхода при истечении токена
     const forceLogout = () => {
         localStorage.removeItem('ccj_user')
         localStorage.removeItem('ccj_tokens')

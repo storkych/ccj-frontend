@@ -95,31 +95,49 @@ function Layout({ children }){
       
       
       
-      <aside>
-        <div className="logo">
-          <img src="/logo.svg" alt="СтройКонтроль" style={{width: 40, height: 40}} />
-          <div className="hide-compact">СтройКонтроль</div>
-        </div>
-        <nav className="nav">
-          {menu.map(item => (
-            <NavLink key={item.to} className={({isActive})=>isActive?'active':''} to={item.to}>
-              <Icon name={item.icon} size={20} />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+       <aside style={{position: 'relative'}}>
+         <div className="logo" style={{display: 'flex', justifyContent: 'center', marginBottom: '18px'}}>
+           <img src="/transparent bg.svg" alt="СтройКонтроль" style={{width: 70, height: 70}} />
+         </div>
+         <nav className="nav">
+           {menu.map(item => (
+             <NavLink key={item.to} className={({isActive})=>isActive?'active':''} to={item.to}>
+               <Icon name={item.icon} size={20} />
+               {item.label}
+             </NavLink>
+           ))}
+         </nav>
+         <div style={{
+           position: 'absolute',
+           bottom: '20px',
+           left: '50%',
+           transform: 'translateX(-50%)',
+           display: 'flex',
+           flexDirection: 'row',
+           alignItems: 'center',
+           gap: '12px',
+           padding: '0 20px',
+           width: '100%',
+           maxWidth: '240px',
+           justifyContent: 'center'
+         }}>
+           <img src="/itc-logo.png" alt="ITCenter" style={{width: 24, height: 24, opacity: 0.7}} />
+           <span style={{
+             fontSize: '11px',
+             color: 'var(--muted)',
+             opacity: 0.8
+           }}>
+             Создано командой ITCenter
+           </span>
+         </div>
+       </aside>
 
 
 
       <div>
         <header>
-          <div className="search">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m21 21-4.3-4.3" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"/><circle cx="11" cy="11" r="7" stroke="#6b7280" strokeWidth="2" fill="none"/></svg>
-            <input placeholder="Поиск по объектам, актам, замечаниям…" />
-          </div>
           {user ? (
-            <div className="row" style={{gap:12, alignItems:'center'}}>
+            <div className="row" style={{gap:12, alignItems:'center', marginLeft:'auto'}}>
               <NavLink to="/notifications" className={`profile-link ${unreadCount > 0 ? 'has-unread' : ''}`} style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'8px 12px', borderRadius:'8px', background:'var(--bg-secondary)', border:'1px solid var(--border)', textDecoration:'none', color:'var(--text)', transition:'all 0.2s', position:'relative', height:'48px', minWidth:'80px'}}>
                 <Icon name="notifications" size={18} />
                 <span style={{fontSize:'14px', fontWeight:'500'}}>Уведомления</span>

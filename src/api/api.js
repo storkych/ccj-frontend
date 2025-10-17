@@ -8,7 +8,6 @@ function getTokens(){
 }
 function setTokens(t){ localStorage.setItem('ccj_tokens', JSON.stringify(t||{})) }
 
-// Функция для обработки истечения токена
 function handleTokenExpired() {
   console.log('[api] Токен истёк, выполняем logout...')
   setTokens({})
@@ -19,7 +18,6 @@ function handleTokenExpired() {
   throw new Error('Токен истёк. Необходимо войти в систему заново.')
 }
 
-// Функция для проверки 403 ошибки с истёкшим токеном
 function checkTokenExpiredError(res, txt) {
   if (res.status === 403) {
     console.log('[api] Получена 403 ошибка, проверяем на истечение токена...')
@@ -59,17 +57,14 @@ export async function http(path, { method='GET', headers={}, body, retry=true } 
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
     console.warn(`[api ←]`, method, url, res.status, txt)
     
-    // Обработка 403 ошибки с истёкшим токеном
     checkTokenExpiredError(res, txt)
-    
-    // Пытаемся распарсить JSON ошибку для получения детального сообщения
+
     try {
       const errorData = JSON.parse(txt)
       if (errorData.detail) {
         throw new Error(errorData.detail)
       }
     } catch (parseError) {
-      // Если не удалось распарсить как JSON, используем текст как есть
     }
     
     throw new Error(txt || `HTTP ${res.status}`)
@@ -86,7 +81,6 @@ export async function apiLogin({ email, password }){
     if (data.access) setTokens({ access: data.access, refresh: data.refresh })
     return data
   } catch (error) {
-    // Обработка специфических ошибок авторизации
     if (error.message.includes('Invalid credentials') || 
         error.message.includes('401') || 
         error.message.includes('Unauthorized')) {
@@ -163,7 +157,6 @@ async function notificationsHttp(path, { method='GET', headers={}, body, retry=t
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
     console.warn(`[notifications ←]`, method, url, res.status, txt)
     
-    // Обработка 403 ошибки с истёкшим токеном
     checkTokenExpiredError(res, txt)
     
     throw new Error(txt || `HTTP ${res.status}`)
@@ -200,7 +193,6 @@ async function visitsHttp(path, { method='GET', headers={}, body, retry=true } =
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
     console.warn(`[visits ←]`, method, url, res.status, txt)
     
-    // Обработка 403 ошибки с истёкшим токеном
     checkTokenExpiredError(res, txt)
     
     throw new Error(txt || `HTTP ${res.status}`)
@@ -249,7 +241,6 @@ async function ticketsHttp(path, { method='GET', headers={}, body, retry=true } 
     const txt = await res.text().catch(()=>`HTTP ${res.status}`)
     console.warn(`[tickets ←]`, method, url, res.status, txt)
     
-    // Обработка 403 ошибки с истёкшим токеном
     checkTokenExpiredError(res, txt)
     
     throw new Error(txt || `HTTP ${res.status}`)
