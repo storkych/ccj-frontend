@@ -46,10 +46,7 @@ export default function ObjectDetail(){
   const [violationModalOpen, setViolationModalOpen] = useState(false)
   const [violationData, setViolationData] = useState({
     title: '',
-    description: '',
-    requires_stop: false,
-    requires_personal_recheck: false,
-    attachments: []
+    description: ''
   })
   const [violationPhotos, setViolationPhotos] = useState([])
   const [violationSaving, setViolationSaving] = useState(false)
@@ -1391,16 +1388,6 @@ export default function ObjectDetail(){
                       alignItems: 'center'
                     }}>
                       <span>📅 {new Date(violation.created_at).toLocaleDateString('ru-RU')}</span>
-                      {violation.requires_stop && (
-                        <span style={{color: '#ef4444', fontWeight: '500'}}>
-                          ⚠️ Требует остановки работ
-                        </span>
-                      )}
-                      {violation.requires_personal_recheck && (
-                        <span style={{color: '#f59e0b', fontWeight: '500'}}>
-                          👁️ Требует личной проверки
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1615,8 +1602,6 @@ export default function ObjectDetail(){
               const payload = {
                 object: obj.id,
                 title: violationData.title,
-                requires_stop: violationData.requires_stop,
-                requires_personal_recheck: violationData.requires_personal_recheck,
                 violation_photos: photoAttachments
               }
               
@@ -1631,10 +1616,7 @@ export default function ObjectDetail(){
               setViolationModalOpen(false)
               setViolationData({
                 title: '',
-                description: '',
-                requires_stop: false,
-                requires_personal_recheck: false,
-                attachments: []
+                description: ''
               })
               setViolationPhotos([])
             }catch(e){
@@ -1666,65 +1648,7 @@ export default function ObjectDetail(){
               />
             </div>
 
-            <div style={{marginBottom: 16}}>
-              <label style={{display:'flex', alignItems:'center', gap: 8, cursor:'pointer'}}>
-                <input 
-                  type="checkbox" 
-                  checked={violationData.requires_stop}
-                  onChange={e=>setViolationData(prev=>({...prev, requires_stop: e.target.checked}))}
-                />
-                <span>Требуется остановка работ</span>
-              </label>
-            </div>
 
-            <div style={{marginBottom: 16}}>
-              <label style={{display:'flex', alignItems:'center', gap: 8, cursor:'pointer'}}>
-                <input 
-                  type="checkbox" 
-                  checked={violationData.requires_personal_recheck}
-                  onChange={e=>setViolationData(prev=>({...prev, requires_personal_recheck: e.target.checked}))}
-                />
-                <span>Требуется личная повторная проверка</span>
-              </label>
-            </div>
-
-            <div style={{marginBottom: 20}}>
-              <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Вложения (ссылки)</label>
-              <div style={{display:'flex', flexDirection:'column', gap: 8}}>
-                {violationData.attachments.map((attachment, index) => (
-                  <div key={index} className="row" style={{gap: 8}}>
-                    <input 
-                      type="url" 
-                      value={attachment}
-                      onChange={e=>{
-                        const newAttachments = [...violationData.attachments]
-                        newAttachments[index] = e.target.value
-                        setViolationData(prev=>({...prev, attachments: newAttachments}))
-                      }}
-                      placeholder="https://example.com/file.pdf"
-                      style={{flex:1, padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)'}}
-                    />
-                    <button 
-                      type="button"
-                      onClick={()=>{
-                        const newAttachments = violationData.attachments.filter((_, i) => i !== index)
-                        setViolationData(prev=>({...prev, attachments: newAttachments}))
-                      }}
-                      style={{padding:'8px 12px', backgroundColor:'var(--red)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer'}}
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                ))}
-                <button 
-                  type="button"
-                  onClick={()=>setViolationData(prev=>({...prev, attachments: [...prev.attachments, '']}))}
-                  style={{padding:'8px 12px', backgroundColor:'var(--brand)', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', alignSelf:'flex-start'}}
-                >
-                  Добавить вложение
-                </button>
-              </div>
-            </div>
 
             <div style={{marginBottom: 20}}>
               <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Фотографии нарушения</label>

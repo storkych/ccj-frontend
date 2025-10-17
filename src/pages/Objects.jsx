@@ -40,7 +40,10 @@ function ObjectCard({ obj }){
         overflow: 'hidden',
         transition: 'all 0.2s ease',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
       {/* Цветная полоса сверху */}
       <div style={{
@@ -53,7 +56,7 @@ function ObjectCard({ obj }){
         boxShadow: `0 0 8px ${statusInfo.color}40`
       }} />
       
-      <div style={{padding: '20px'}}>
+      <div style={{padding: '20px', flex: 1, display: 'flex', flexDirection: 'column'}}>
         {/* Заголовок и статус */}
         <div className="row" style={{justifyContent:'space-between', marginBottom:16, alignItems:'flex-start'}}>
           <div style={{flex: 1}}>
@@ -101,7 +104,7 @@ function ObjectCard({ obj }){
         </div>
 
         {/* Роли */}
-        <div style={{marginBottom: 16}}>
+        <div style={{marginBottom: 16, marginTop: 'auto'}}>
           <div className="row" style={{gap:12, justifyContent:'space-between'}}>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px'}}>ССК</div>
@@ -138,7 +141,7 @@ function ObjectCard({ obj }){
 
         {/* Дополнительная информация */}
         {(obj.deliveries_today!=null || obj.visits) && (
-          <div style={{marginBottom: 16, paddingTop: 12, borderTop: '1px solid var(--border)'}}>
+          <div style={{marginTop: 'auto', marginBottom: 16, paddingTop: 12, borderTop: '1px solid var(--border)'}}>
             <div className="row" style={{gap:8, flexWrap:'wrap'}}>
               {obj.deliveries_today!=null && (
                 <span style={{
