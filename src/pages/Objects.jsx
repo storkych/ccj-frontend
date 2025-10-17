@@ -178,6 +178,7 @@ export default function Objects(){
   const [loading, setLoading] = useState(true)
   const [sskFilter, setSskFilter] = useState('all') // all|ready|active|not_ready
   const [activeTab, setActiveTab] = useState('assigned') // assigned|available
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(()=>{
     const mineParam = user?.role === 'ssk' ? undefined : true
@@ -207,48 +208,73 @@ export default function Objects(){
   }, [mine, user])
 
   const filtered = useMemo(()=>{
-    if(user?.role!=='ssk') return mine
-    if(sskFilter==='all') return mine
-    return mine.filter(o => o.status === sskFilter)
-  }, [mine, user, sskFilter])
+    let result = mine
+    
+    // Фильтр по статусу
+    if(sskFilter !== 'all') {
+      result = result.filter(o => o.status === sskFilter)
+    }
+    
+    // Поиск по названию
+    if(searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      result = result.filter(o => 
+        o.name?.toLowerCase().includes(query) || 
+        o.address?.toLowerCase().includes(query)
+      )
+    }
+    
+    return result
+  }, [mine, sskFilter, searchQuery])
 
   const filteredSskObjects = useMemo(()=>{
     if(user?.role !== 'ssk') return { assigned: [], available: [] }
-    if(sskFilter === 'all') return sskObjects
     
-    const filterByActivation = (objects) => objects.filter(o => o.status === sskFilter)
+    const applyFilters = (objects) => {
+      let result = objects
+      
+      // Фильтр по статусу
+      if(sskFilter !== 'all') {
+        result = result.filter(o => o.status === sskFilter)
+      }
+      
+      // Поиск по названию
+      if(searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim()
+        result = result.filter(o => 
+          o.name?.toLowerCase().includes(query) || 
+          o.address?.toLowerCase().includes(query)
+        )
+      }
+      
+      return result
+    }
     
     return {
-      assigned: filterByActivation(sskObjects.assigned),
-      available: filterByActivation(sskObjects.available)
+      assigned: applyFilters(sskObjects.assigned),
+      available: applyFilters(sskObjects.available)
     }
-  }, [sskObjects, sskFilter, user])
+  }, [sskObjects, sskFilter, searchQuery, user])
 
   return (
     <div className="page">
-      <div style={{marginBottom: '32px'}}>
-        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>Объекты</h1>
-        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
-          {user?.role === 'ssk' ? 'Управление объектами и назначение ответственных' : 'Просмотр назначенных объектов'}
-        </p>
-      </div>
       
-      {user?.role==='ssk' && (
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+      }}>
         <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '16px',
-          marginBottom: '20px',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
         }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '20px',
-            flexWrap: 'wrap'
-          }}>
-            {/* Вкладки */}
+          {/* Вкладки только для ССК */}
+          {user?.role === 'ssk' && (
             <div style={{
               display: 'flex',
               background: 'var(--bg-secondary)',
@@ -348,14 +374,64 @@ export default function Objects(){
                 </span>
               </button>
             </div>
+          )}
 
-            {/* Фильтр */}
+          {/* Фильтры для всех ролей */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            flex: 1,
+            minWidth: '400px',
+            flexWrap: 'wrap'
+          }}>
+            {/* Поиск по названию */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               flex: 1,
-              minWidth: '300px'
+              minWidth: '200px'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: 'var(--text)',
+                fontWeight: '500',
+                fontSize: '13px',
+                whiteSpace: 'nowrap'
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                </svg>
+                Поиск:
+              </div>
+              <input 
+                type="text"
+                className="input" 
+                value={searchQuery} 
+                onChange={e=>setSearchQuery(e.target.value)}
+                placeholder="Название или адрес объекта..."
+                style={{
+                  flex: 1,
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  color: 'var(--text)',
+                  fontSize: '13px',
+                  fontWeight: '400'
+                }}
+              />
+            </div>
+
+            {/* Фильтр по статусу */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
               <div style={{
                 display: 'flex',
@@ -376,15 +452,14 @@ export default function Objects(){
                 value={sskFilter} 
                 onChange={e=>setSskFilter(e.target.value)}
                 style={{
-                  flex: 1,
-                  maxWidth: '180px',
                   background: 'var(--bg)',
                   border: '1px solid var(--border)',
                   borderRadius: '6px',
                   padding: '6px 10px',
                   color: 'var(--text)',
                   fontSize: '13px',
-                  fontWeight: '400'
+                  fontWeight: '400',
+                  minWidth: '140px'
                 }}
               >
                 <option value="all">Все</option>
@@ -394,21 +469,26 @@ export default function Objects(){
                 <option value="suspended">Приостановлен</option>
                 <option value="completed">Завершён</option>
               </select>
-              <div style={{
-                fontSize: '11px',
-                color: 'var(--muted)',
-                background: 'var(--bg-secondary)',
-                padding: '3px 8px',
-                borderRadius: '4px',
-                border: '1px solid var(--border)',
-                whiteSpace: 'nowrap'
-              }}>
-                {activeTab === 'assigned' ? filteredSskObjects.assigned.length : filteredSskObjects.available.length} шт.
-              </div>
+            </div>
+
+            {/* Счетчик */}
+            <div style={{
+              fontSize: '11px',
+              color: 'var(--muted)',
+              background: 'var(--bg-secondary)',
+              padding: '3px 8px',
+              borderRadius: '4px',
+              border: '1px solid var(--border)',
+              whiteSpace: 'nowrap'
+            }}>
+              {user?.role === 'ssk' 
+                ? (activeTab === 'assigned' ? filteredSskObjects.assigned.length : filteredSskObjects.available.length)
+                : filtered.length
+              } шт.
             </div>
           </div>
         </div>
-      )}
+      </div>
       {loading ? <div className="muted">Загрузка...</div> : (
         <>
           {user?.role === 'ssk' ? (

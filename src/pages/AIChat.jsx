@@ -114,12 +114,6 @@ export default function AIChat(){
 
   return (
     <div className="page">
-      <div style={{marginBottom: '32px'}}>
-        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>ИИ Чат</h1>
-        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
-          Общение с искусственным интеллектом по вопросам строительства
-        </p>
-      </div>
 
       {/* Панель управления */}
       <div style={{

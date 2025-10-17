@@ -77,12 +77,6 @@ export default function Visits(){
 
   return (
     <div className="page">
-      <div style={{marginBottom: '32px'}}>
-        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>Посещения</h1>
-        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
-          Управление посещениями объектов
-        </p>
-      </div>
       
       <div style={{
         background: 'var(--panel)',

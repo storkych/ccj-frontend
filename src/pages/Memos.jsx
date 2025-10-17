@@ -19,7 +19,6 @@ export default function Memos(){
 
   return (
     <div className="page">
-      <h1>Методички</h1>
       {loading ? (
         <div className="muted">Загрузка методичек...</div>
       ) : (

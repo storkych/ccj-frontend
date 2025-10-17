@@ -32,7 +32,6 @@ export default function Tickets(){
 
   return (
     <div className="page">
-      <h1>Техническая поддержка</h1>
       <div className="card" style={{padding: 20, marginBottom: 20}}>
         <h2 style={{marginTop: 0, marginBottom: 16, fontSize: '20px'}}>Создать заявку</h2>
         <form onSubmit={submit}>

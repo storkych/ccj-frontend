@@ -224,14 +224,6 @@ export default function FileStorage() {
 
   return (
     <div className="page">
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)' }}>
-          Файловое хранилище
-        </h1>
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '16px' }}>
-          Управление файлами и документами
-        </p>
-      </div>
 
       {/* Хлебные крошки */}
       <div style={{

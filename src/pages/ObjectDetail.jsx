@@ -1423,9 +1423,12 @@ export default function ObjectDetail(){
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px',
-              fontSize: '24px'
+              color: '#10b981'
             }}>
-              ✅
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 12l2 2 4-4"/>
+                <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/>
+              </svg>
             </div>
             <h4 style={{
               margin: '0 0 8px 0',
@@ -1445,14 +1448,6 @@ export default function ObjectDetail(){
         )}
       </div>
 
-      <section className="card">
-        <h3 style={{marginTop:0}}>Исполнительная документация</h3>
-        <div className="row" style={{gap:8}}>
-          <span className="pill">акты: 12</span>
-          <span className="pill">чертежи: 5</span>
-          <span className="pill">сертификаты: 9</span>
-        </div>
-      </section>
 
 
       <Modal open={areaModalOpen} onClose={()=>setAreaModalOpen(false)} style={{ width:'95vw', maxWidth:'95vw' }}>

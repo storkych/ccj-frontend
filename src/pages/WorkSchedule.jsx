@@ -114,12 +114,6 @@ export default function WorkSchedule(){
 
   return (
     <div className="page">
-      <div style={{marginBottom: '32px'}}>
-        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>График работ</h1>
-        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
-          Управление рабочими планами и отслеживание выполнения работ
-        </p>
-      </div>
 
       {/* Панель фильтров */}
       <div style={{

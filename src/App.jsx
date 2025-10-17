@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, createContext, useContext } from 'react'
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx'
 import { getNotifications } from './api/api.js'
+
+export const NotificationContext = createContext()
 import Login from './pages/Login.jsx'
 import Objects from './pages/Objects.jsx'
 import ObjectDetail from './pages/ObjectDetail.jsx'
@@ -48,12 +50,110 @@ function Layout({ children }){
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
 
+  const getRoleLabel = (role) => {
+    const roleMap = {
+      'foreman': 'Прораб',
+      'ssk': 'ССК',
+      'iko': 'ИКО',
+      'admin': 'Администратор'
+    }
+    return roleMap[role] || role
+  }
+
+  const getPageInfo = (pathname, user) => {
+    const pageMap = {
+      '/objects': { 
+        title: 'Объекты', 
+        description: user?.role === 'ssk' 
+          ? 'Управление объектами и назначение ответственных' 
+          : 'Просмотр назначенных объектов'
+      },
+      '/files': { 
+        title: 'Файловое хранилище', 
+        description: 'Документы и файлы проекта'
+      },
+      '/memos': { 
+        title: 'Памятки', 
+        description: 'Важные заметки и инструкции'
+      },
+      '/notifications': { 
+        title: 'Уведомления', 
+        description: 'Системные сообщения и оповещения'
+      },
+      '/profile': { 
+        title: 'Профиль', 
+        description: 'Личные данные и настройки'
+      },
+      '/work-schedule': { 
+        title: 'График работ', 
+        description: 'Планирование и контроль работ'
+      },
+      '/daily-checklist': {
+        title: 'Ежедневный чек-лист',
+        description: 'Контроль выполнения ежедневных задач'
+      },
+      '/ai': {
+        title: 'ИИ-помощник',
+        description: 'Искусственный интеллект для помощи в работе'
+      },
+      '/qr': {
+        title: 'QR-коды',
+        description: 'Генерация и сканирование QR-кодов'
+      },
+      '/tickets': {
+        title: 'Техническая поддержка',
+        description: 'Система заявок и обращений'
+      },
+      '/deliveries': {
+        title: 'Поставки',
+        description: 'Управление поставками материалов'
+      },
+      '/deliveries-ssk': {
+        title: 'Поставки ССК',
+        description: 'Контроль поставок службой строительного контроля'
+      },
+      '/violations': {
+        title: 'Нарушения',
+        description: 'Учет и контроль нарушений на объектах'
+      },
+      '/visits': {
+        title: 'Посещения',
+        description: 'Планирование и учет посещений объектов'
+      },
+      '/ssk/checklists': {
+        title: 'Чек-листы ССК',
+        description: 'Контрольные списки службы строительного контроля'
+      }
+    }
+    
+    // Для страниц объектов с ID
+    if (pathname.startsWith('/objects/') && pathname !== '/objects') {
+      return { title: 'Детали объекта', description: 'Подробная информация об объекте' }
+    }
+    
+    // Для страниц поставок с ID
+    if (pathname.startsWith('/deliveries/') && pathname !== '/deliveries') {
+      return { title: 'Детали поставки', description: 'Подробная информация о поставке' }
+    }
+    
+    // Для страниц материалов поставки
+    if (pathname.includes('/materials')) {
+      return { title: 'Материалы поставки', description: 'Детализация материалов в поставке' }
+    }
+    
+    // Для страниц создания рабочих планов
+    if (pathname.startsWith('/work-plans/new/')) {
+      return { title: 'Новый рабочий план', description: 'Создание нового плана работ' }
+    }
+    
+    return pageMap[pathname] || { title: 'СтройКонтроль', description: 'Система управления строительными проектами' }
+  }
+
   const allItems = [
     { to:'/objects', label:'Объекты', icon: 'objects' },
     { to:'/files', label:'Файловое хранилище', icon: 'files' },
     { to:'/memos', label:'Памятки', icon: 'memos' },
     { to:'/ai', label:'ИИ чат', icon: 'ai' },
-    { to:'/tickets', label:'Тикеты', icon: 'tickets' },
     { to:'/work-schedule', label:'График работ', icon: 'schedule' },
   ]
   const byRole = {
@@ -74,9 +174,9 @@ function Layout({ children }){
     ],
     admin: []
   }
-  const menu = [...allItems, ...(byRole[user?.role] || [])]
+  const menu = [...allItems, ...(byRole[user?.role] || []), { to:'/tickets', label:'Техническая поддержка', icon: 'tickets' }]
 
-  useEffect(() => {
+  const updateNotificationCount = () => {
     if (user) {
       getNotifications(user.id).then(r => {
         const notifications = r.notifications || []
@@ -88,6 +188,10 @@ function Layout({ children }){
         setUnreadCount(0)
       })
     }
+  }
+
+  useEffect(() => {
+    updateNotificationCount()
   }, [user])
 
   return (
@@ -134,10 +238,34 @@ function Layout({ children }){
 
 
 
-      <div>
-        <header>
-          {user ? (
-            <div className="row" style={{gap:12, alignItems:'center', marginLeft:'auto'}}>
+      <NotificationContext.Provider value={{ updateNotificationCount }}>
+        <div>
+          <header>
+            {user ? (
+              <div className="row" style={{gap:12, alignItems:'center', width:'100%'}}>
+                {/* Информация о странице */}
+                <div style={{flex: 1, minWidth: 0}}>
+                  <h1 style={{
+                    margin: 0,
+                    fontSize: '24px',
+                    fontWeight: '700',
+                    color: 'var(--text)',
+                    lineHeight: '1.2'
+                  }}>
+                    {getPageInfo(location.pathname, user).title}
+                  </h1>
+                  <p style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '14px',
+                    color: 'var(--muted)',
+                    lineHeight: '1.3'
+                  }}>
+                    {getPageInfo(location.pathname, user).description}
+                  </p>
+                </div>
+                
+                {/* Действия пользователя */}
+                <div className="row" style={{gap:12, alignItems:'center'}}>
               <NavLink to="/notifications" className={`profile-link ${unreadCount > 0 ? 'has-unread' : ''}`} style={{display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'8px 12px', borderRadius:'8px', background:'var(--bg-secondary)', border:'1px solid var(--border)', textDecoration:'none', color:'var(--text)', transition:'all 0.2s', position:'relative', height:'48px', minWidth:'80px'}}>
                 <Icon name="notifications" size={18} />
                 <span style={{fontSize:'14px', fontWeight:'500'}}>Уведомления</span>
@@ -181,9 +309,9 @@ function Layout({ children }){
                   <div style={{fontSize:'14px', fontWeight:'600', color:'var(--text)'}}>
                     {user.full_name || 'Профиль'}
                   </div>
-                  <div style={{fontSize:'12px', color:'var(--text-secondary)'}}>
-                    {user.role?.toUpperCase()}
-                  </div>
+                   <div style={{fontSize:'12px', color:'var(--text-secondary)'}}>
+                     {getRoleLabel(user.role)}
+                   </div>
                 </div>
               </NavLink>
               <button 
@@ -193,28 +321,52 @@ function Layout({ children }){
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  gap: 8, 
-                  padding: '8px 12px', 
+                  padding: '8px', 
                   borderRadius: '8px', 
                   background: 'var(--bg-secondary)', 
                   border: '1px solid var(--border)', 
                   textDecoration: 'none', 
-                  color: 'var(--text)', 
+                  color: 'white', 
                   transition: 'all 0.2s',
                   cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
                   height: '48px',
-                  minWidth: '60px'
+                  width: '48px'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#ef4444'
+                  e.target.style.borderColor = '#ef4444'
+                  e.target.style.transform = 'translateY(-1px)'
+                  e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'var(--bg-secondary)'
+                  e.target.style.borderColor = 'var(--border)'
+                  e.target.style.transform = 'translateY(0)'
+                  e.target.style.boxShadow = 'none'
                 }}
               >
-                Выйти
+                <svg 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16,17 21,12 16,7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
               </button>
+              </div>
             </div>
           ) : null}
         </header>
         <main>{children}</main>
-      </div>
+        </div>
+      </NotificationContext.Provider>
     </div>
   )
 }
@@ -228,7 +380,6 @@ function Protected({ children }){
     { to:'/files', label:'Файловое хранилище', icon: 'files' },
     { to:'/memos', label:'Памятки', icon: 'memos' },
     { to:'/ai', label:'ИИ чат', icon: 'ai' },
-    { to:'/tickets', label:'Тикеты', icon: 'tickets' },
     { to:'/work-schedule', label:'График работ', icon: 'schedule' },
   ]
   const byRole = {
@@ -249,7 +400,7 @@ function Protected({ children }){
     ],
     admin: []
   }
-  const menu = [...allItems, ...(byRole[user?.role] || [])]
+  const menu = [...allItems, ...(byRole[user?.role] || []), { to:'/tickets', label:'Техническая поддержка', icon: 'tickets' }]
 
   if(!user) return <Navigate to="/login" replace state={{ from: location }} />
   return children

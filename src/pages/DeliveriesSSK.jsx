@@ -110,18 +110,10 @@ export default function DeliveriesSSK() {
       }}>
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
           marginBottom: '20px'
         }}>
-          <h1 style={{
-            margin: 0,
-            fontSize: '28px',
-            fontWeight: '700',
-            color: 'var(--text)'
-          }}>
-            📦 Поставки (ССК)
-          </h1>
 
           {/* Фильтр по объекту */}
           <div style={{

@@ -222,12 +222,6 @@ export default function Violations(){
 
   return (
     <div className="page">
-      <div style={{marginBottom: '32px'}}>
-        <h1 style={{margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700', color: 'var(--text)'}}>Нарушения</h1>
-        <p style={{margin: 0, color: 'var(--muted)', fontSize: '16px'}}>
-          Управление нарушениями и их исправлением
-        </p>
-      </div>
       
       <div style={{
         background: 'var(--panel)',

@@ -107,23 +107,6 @@ export default function Deliveries() {
   return (
     <div className="page">
       {/* Заголовок */}
-      <div style={{
-        background: 'var(--panel)',
-        border: '1px solid var(--border)',
-        borderRadius: '12px',
-        padding: '24px',
-        marginBottom: '20px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-      }}>
-        <h1 style={{
-          margin: 0,
-          fontSize: '28px',
-          fontWeight: '700',
-          color: 'var(--text)'
-        }}>
-          📦 Поставки
-        </h1>
-      </div>
 
       {/* Блок фильтров */}
       <div style={{

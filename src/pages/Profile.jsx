@@ -23,9 +23,6 @@ export default function Profile(){
 
   return (
     <div className="page">
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ margin: 0 }}>Профиль пользователя</h1>
-      </div>
 
       <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: '1fr 1fr' }}>
         <div className="card" style={{ padding: '2rem' }}>

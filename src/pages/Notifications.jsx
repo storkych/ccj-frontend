@@ -1,10 +1,12 @@
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useContext } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { getNotifications, markNotificationRead } from '../api/api.js'
+import { NotificationContext } from '../App.jsx'
 
 export default function Notifications(){
   const { user } = useAuth()
+  const { updateNotificationCount } = useContext(NotificationContext)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -25,10 +27,10 @@ export default function Notifications(){
     if (!notification.is_read) {
       try {
         await markNotificationRead(notification.id)
-        // Обновляем локальное состояние
         setItems(prev => prev.map(n => 
           n.id === notification.id ? { ...n, is_read: true } : n
         ))
+        updateNotificationCount()
       } catch (e) {
         console.warn('[ui notifications] mark read error', e)
         alert('Ошибка при отметке уведомления как прочитанного')
@@ -38,7 +40,6 @@ export default function Notifications(){
 
   return (
     <div className="page">
-      <h1>Уведомления</h1>
       {loading ? (
         <div className="muted">Загрузка уведомлений...</div>
       ) : (
