@@ -12,7 +12,6 @@ export function AuthProvider({ children }) {
         }
     })
 
-    // Логин через реальный бэк: /auth/login (+ /users/me)
     const login = async (email, password) => {
         try {
             const api = await import('../api/api.js')
@@ -41,20 +40,27 @@ export function AuthProvider({ children }) {
             setUser(data)
             return data
         } catch (error) {
-            // Пробрасываем ошибку с понятным сообщением
             throw error
         }
     }
 
-    // Выход: /auth/logout + чистка локального состояния
     const logout = () => {
         import('../api/api.js').then(m => m.apiLogout()).catch(() => {})
         localStorage.removeItem('ccj_user')
+        localStorage.removeItem('ccj_tokens')
         setUser(null)
     }
 
+    // Функция для принудительного выхода при истечении токена
+    const forceLogout = () => {
+        localStorage.removeItem('ccj_user')
+        localStorage.removeItem('ccj_tokens')
+        setUser(null)
+        window.location.href = '/login'
+    }
+
     return (
-        <AuthContext.Provider value={{ user, login, logout }}>
+        <AuthContext.Provider value={{ user, login, logout, forceLogout }}>
             {children}
         </AuthContext.Provider>
     )
