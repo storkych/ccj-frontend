@@ -2,24 +2,25 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { getChecklists, getTodayChecklist, createChecklist, updateChecklist } from '../api/api.js'
 import { getObjects } from '../api/api.js'
+import NotificationToast from '../components/NotificationToast.jsx'
+import { useNotification } from '../hooks/useNotification.js'
 
 export default function DailyChecklist() {
   const { user } = useAuth()
+  const { notification, showSuccess, showError, hide } = useNotification()
   const [selectedObject, setSelectedObject] = useState('')
   const [objects, setObjects] = useState([])
   const [todayChecklist, setTodayChecklist] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    weather: '',
-    temperature: '',
-    safety_answers: {},
-    issues: [],
-    next_day_plan: ''
-  })
+  const [switchingObject, setSwitchingObject] = useState(false)
+          const [formData, setFormData] = useState({
+            safety_answers: {},
+            issues: []
+          })
 
-  // Полный чек-лист безопасности
-  const safetyChecklist = [
+          // Полный чек-лист безопасности
+          const safetyChecklist = [
     // Раздел 1. СОБЛЮДЕНИЕ ТРЕБОВАНИЙ БЕЗОПАСНОСТИ ТРУДА. КУЛЬТУРА ПРОИЗВОДСТВА
     {
       section: 1,
@@ -247,54 +248,56 @@ export default function DailyChecklist() {
     }
   ]
 
+  // Подсчет общего количества пунктов
+  const totalItems = safetyChecklist.reduce((total, section) => total + section.items.length, 0)
+
   useEffect(() => {
-    loadData()
+    loadData() // Первоначальная загрузка
+  }, [])
+
+  useEffect(() => {
+    if (selectedObject) {
+      loadData(true) // Переключение объекта
+    }
   }, [selectedObject])
 
-  const loadData = async () => {
+  const loadData = async (isObjectSwitch = false) => {
     try {
-      setLoading(true)
+      if (isObjectSwitch) {
+        setSwitchingObject(true)
+      } else {
+        setLoading(true)
+      }
       
       // Загружаем объекты
       const objectsData = await getObjects()
       setObjects(objectsData.items || [])
-      
-      // Автоматически выбираем первый объект, если ничего не выбрано
-      if (!selectedObject && objectsData.items && objectsData.items.length > 0) {
-        setSelectedObject(objectsData.items[0].id.toString())
-        return // useEffect перезапустится с новым selectedObject
-      }
       
       // Загружаем сегодняшний чек-лист если объект выбран
       if (selectedObject) {
         const checklist = await getTodayChecklist(selectedObject)
         setTodayChecklist(checklist)
         
-        if (checklist) {
-          // Заполняем форму данными из существующего чек-листа
-          setFormData({
-            weather: checklist.data?.weather || '',
-            temperature: checklist.data?.temperature || '',
-            safety_answers: checklist.data?.safety_answers || {},
-            issues: checklist.data?.issues || [],
-            next_day_plan: checklist.data?.next_day_plan || ''
-          })
-        } else {
-          // Сбрасываем форму для нового чек-листа
-          setFormData({
-            weather: '',
-            temperature: '',
-            safety_answers: {},
-            issues: [],
-            next_day_plan: ''
-          })
-        }
+                if (checklist) {
+                  // Заполняем форму данными из существующего чек-листа
+                  setFormData({
+                    safety_answers: checklist.data?.safety_answers || {},
+                    issues: checklist.data?.issues || []
+                  })
+                } else {
+                  // Сбрасываем форму для нового чек-листа
+                  setFormData({
+                    safety_answers: {},
+                    issues: []
+                  })
+                }
       }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error)
-      alert('Ошибка загрузки данных')
+      showError('Ошибка загрузки данных')
     } finally {
       setLoading(false)
+      setSwitchingObject(false)
     }
   }
 
@@ -310,24 +313,28 @@ export default function DailyChecklist() {
 
   const handleSave = async () => {
     if (!selectedObject) {
-      alert('Выберите объект')
+      showError('Выберите объект')
+      return
+    }
+
+    // Проверяем, что все пункты заполнены
+    const answeredItems = Object.keys(formData.safety_answers).length
+    if (answeredItems < totalItems) {
+      showError(`Заполните все пункты чек-листа. Осталось заполнить: ${totalItems - answeredItems} из ${totalItems}`)
       return
     }
 
     try {
     setSaving(true)
       
-      const checklistData = {
-        object_id: parseInt(selectedObject),
-        data: {
-          date: new Date().toISOString().split('T')[0],
-          weather: formData.weather,
-          temperature: formData.temperature,
-          safety_answers: formData.safety_answers,
-          issues: formData.issues,
-          next_day_plan: formData.next_day_plan
-        }
-      }
+              const checklistData = {
+                object_id: parseInt(selectedObject),
+                data: {
+                  date: new Date().toISOString().split('T')[0],
+                  safety_answers: formData.safety_answers,
+                  issues: formData.issues
+                }
+              }
 
       let result
       if (todayChecklist) {
@@ -339,11 +346,11 @@ export default function DailyChecklist() {
       }
 
       setTodayChecklist(result)
-      alert(todayChecklist ? 'Чек-лист обновлен!' : 'Чек-лист создан!')
+      showSuccess(todayChecklist ? 'Чек-лист обновлен!' : 'Чек-лист создан!')
       
     } catch (error) {
       console.error('Ошибка сохранения чек-листа:', error)
-      alert('Ошибка при сохранении чек-листа')
+      showError('Ошибка при сохранении чек-листа')
     } finally {
     setSaving(false)
     }
@@ -367,17 +374,41 @@ export default function DailyChecklist() {
 
   return (
     <div className="page">
-      {/* Заголовок */}
-
+      <NotificationToast 
+        notification={notification} 
+        onClose={hide} 
+      />
       {/* Выбор объекта */}
       <div style={{
         background: 'var(--panel)',
         border: '1px solid var(--border)',
         borderRadius: '12px',
-        padding: '20px',
-        marginBottom: '20px',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        padding: '24px',
+        marginBottom: '24px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
       }}>
+                <div style={{
+                  marginBottom: '20px'
+                }}>
+                  <h2 style={{
+                    margin: 0,
+                    fontSize: '20px',
+                    fontWeight: '700',
+                    color: 'var(--text)',
+                    lineHeight: '1.2'
+                  }}>
+                    Ежедневный чек-лист прораба
+                  </h2>
+                  <p style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '14px',
+                    color: 'var(--muted)',
+                    lineHeight: '1.3'
+                  }}>
+                    Выберите объект для заполнения чек-листа безопасности
+                  </p>
+                </div>
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -387,23 +418,28 @@ export default function DailyChecklist() {
           <label style={{
             fontSize: '16px',
             fontWeight: '600',
-            color: 'var(--text)'
+            color: 'var(--text)',
+            minWidth: '120px'
           }}>
-            Выберите объект:
+            Объект:
           </label>
-          <select
-            value={selectedObject}
-            onChange={(e) => setSelectedObject(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              background: 'var(--panel)',
-              color: 'var(--text)',
-              fontSize: '14px',
-              minWidth: '200px'
-            }}
-          >
+                  <select
+                    value={selectedObject}
+                    onChange={(e) => setSelectedObject(e.target.value)}
+                    disabled={switchingObject}
+                    style={{
+                      padding: '12px 16px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: switchingObject ? 'var(--bg-secondary)' : 'var(--bg)',
+                      color: switchingObject ? 'var(--muted)' : 'var(--text)',
+                      fontSize: '14px',
+                      minWidth: '300px',
+                      transition: 'all 0.3s ease',
+                      cursor: switchingObject ? 'not-allowed' : 'pointer',
+                      opacity: switchingObject ? 0.7 : 1
+                    }}
+                  >
             <option value="">Выберите объект</option>
             {objects.map(obj => (
               <option key={obj.id} value={obj.id}>{obj.name}</option>
@@ -411,122 +447,122 @@ export default function DailyChecklist() {
           </select>
         </div>
 
-        {selectedObject && (
-          <div style={{
-            padding: '12px',
-            background: todayChecklist ? '#d1fae5' : '#fef3c7',
-            border: `1px solid ${todayChecklist ? '#10b981' : '#f59e0b'}`,
-            borderRadius: '6px',
-            fontSize: '14px'
-          }}>
-            {todayChecklist ? (
-              <span style={{ color: '#065f46' }}>
-                ✅ Чек-лист на сегодня уже создан. Вы можете его редактировать.
-              </span>
-            ) : (
-              <span style={{ color: '#92400e' }}>
-                ⚠️ Чек-лист на сегодня еще не создан. Заполните форму ниже.
-              </span>
-            )}
+                {selectedObject && !switchingObject && (
+                  <div style={{
+                    padding: '16px',
+                    background: todayChecklist ? '#f0fdf4' : '#fefce8',
+                    border: `1px solid ${todayChecklist ? '#22c55e' : '#eab308'}`,
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    animation: 'fadeIn 0.3s ease-out'
+                  }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              background: todayChecklist ? '#22c55e' : '#eab308',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              flexShrink: 0
+            }}>
+              {todayChecklist ? '✓' : '!'}
+            </div>
+            <span style={{ 
+              color: todayChecklist ? '#15803d' : '#a16207',
+              fontWeight: '500'
+            }}>
+              {todayChecklist ? 'Чек-лист на сегодня уже создан. Вы можете его редактировать.' : 'Чек-лист на сегодня еще не создан. Заполните форму ниже.'}
+            </span>
           </div>
         )}
       </div>
 
+      {!selectedObject && (
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '40px',
+          marginBottom: '24px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          textAlign: 'center'
+        }}>
+          <h3 style={{
+            margin: '0 0 12px 0',
+            fontSize: '24px',
+            fontWeight: '700',
+            color: 'var(--text)'
+          }}>
+            Ежедневный чек-лист прораба
+          </h3>
+          <p style={{
+            margin: '0',
+            fontSize: '16px',
+            color: 'var(--muted)',
+            lineHeight: '1.5',
+            maxWidth: '400px',
+            margin: '0 auto'
+          }}>
+            Выберите объект выше, чтобы начать заполнение чек-листа безопасности
+          </p>
+        </div>
+      )}
+
       {selectedObject && (
         <>
-          {/* Общая информация */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            padding: '24px',
-            marginBottom: '20px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-          }}>
-            <h2 style={{
-              margin: '0 0 20px 0',
-              fontSize: '20px',
-              fontWeight: '600',
-              color: 'var(--text)'
-            }}>
-              Общая информация
-            </h2>
-
+          {switchingObject ? (
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '16px'
+              background: 'var(--panel)',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              padding: '60px 40px',
+              marginBottom: '24px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              textAlign: 'center'
             }}>
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: 'var(--text)',
-                  marginBottom: '8px'
-                }}>
-                  Погода
-                </label>
-                <input
-                  type="text"
-                  value={formData.weather}
-                  onChange={(e) => setFormData(prev => ({ ...prev, weather: e.target.value }))}
-                  placeholder="Ясно, облачно, дождь..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    background: 'var(--panel)',
-                    color: 'var(--text)',
-                    fontSize: '14px'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: 'var(--text)',
-                  marginBottom: '8px'
-                }}>
-                  Температура
-                </label>
-                <input
-                  type="text"
-                  value={formData.temperature}
-                  onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
-                  placeholder="+5°C, -10°C..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    background: 'var(--panel)',
-                    color: 'var(--text)',
-                    fontSize: '14px'
-                  }}
-                />
-              </div>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid var(--border)',
+                borderTop: '3px solid var(--brand)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 16px auto'
+              }} />
+              <p style={{
+                margin: 0,
+                fontSize: '16px',
+                color: 'var(--muted)',
+                fontWeight: '500'
+              }}>
+                Загружаем чек-лист...
+              </p>
             </div>
-          </div>
-
-          {/* Чек-лист безопасности */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            padding: '24px',
-            marginBottom: '20px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-          }}>
+          ) : (
+            <>
+              {/* Чек-лист безопасности */}
+              <div style={{
+                background: 'var(--panel)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '24px',
+                marginBottom: '24px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                animation: 'fadeIn 0.3s ease-out'
+              }}>
             <h2 style={{
-              margin: '0 0 20px 0',
+              margin: '0 0 24px 0',
               fontSize: '20px',
-              fontWeight: '600',
-              color: 'var(--text)'
+              fontWeight: '700',
+              color: 'var(--text)',
+              lineHeight: '1.2'
             }}>
               Соблюдение требований безопасности труда
             </h2>
@@ -557,7 +593,35 @@ export default function DailyChecklist() {
                     display: 'grid',
                     gap: '12px'
                   }}>
-                    {section.items.map(item => (
+                    {section.items.map(item => {
+                      const answer = formData.safety_answers[item.id]
+                      const getItemStyle = () => {
+                        if (answer === 'yes') {
+                          return {
+                            outline: '2px solid #22c55e',
+                            outlineOffset: '-2px',
+                            boxShadow: '0 0 0 1px #22c55e20'
+                          }
+                        } else if (answer === 'no') {
+                          return {
+                            outline: '2px solid #ef4444',
+                            outlineOffset: '-2px',
+                            boxShadow: '0 0 0 1px #ef444420'
+                          }
+                        } else if (answer === 'not_required') {
+                          return {
+                            outline: '2px solid #6b7280',
+                            outlineOffset: '-2px',
+                            boxShadow: '0 0 0 1px #6b728020'
+                          }
+                        } else {
+                          return {
+                            border: '1px solid var(--border)'
+                          }
+                        }
+                      }
+                      
+                      return (
                       <div key={item.id} style={{
                         display: 'grid',
                         gridTemplateColumns: 'auto 1fr auto',
@@ -565,14 +629,19 @@ export default function DailyChecklist() {
                         alignItems: 'flex-start',
                         padding: '16px',
                         background: 'var(--panel)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px'
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease',
+                        boxSizing: 'border-box',
+                        ...getItemStyle()
                       }}>
                         {/* Номер пункта */}
                         <div style={{
                           fontSize: '14px',
                           fontWeight: '600',
-                          color: 'var(--brand)',
+                          color: answer === 'yes' ? '#22c55e' : 
+                                 answer === 'no' ? '#ef4444' : 
+                                 answer === 'not_required' ? '#6b7280' : 
+                                 'var(--brand)',
                           minWidth: '30px'
                         }}>
                           {item.number}
@@ -597,10 +666,24 @@ export default function DailyChecklist() {
                             <label key={option} style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              gap: '8px',
                               cursor: 'pointer',
-                              fontSize: '13px',
-                              whiteSpace: 'nowrap'
+                              fontSize: '14px',
+                              whiteSpace: 'nowrap',
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              background: formData.safety_answers[item.id] === option 
+                                ? (option === 'yes' ? '#f0fdf4' : 
+                                   option === 'no' ? '#fef2f2' : 
+                                   '#f9fafb') 
+                                : 'transparent',
+                              border: `2px solid ${formData.safety_answers[item.id] === option 
+                                ? (option === 'yes' ? '#22c55e' : 
+                                   option === 'no' ? '#ef4444' : 
+                                   '#6b7280') 
+                                : 'var(--border)'}`,
+                              transition: 'all 0.2s ease',
+                              fontWeight: formData.safety_answers[item.id] === option ? '600' : '500'
                             }}>
                               <input
                                 type="radio"
@@ -609,13 +692,23 @@ export default function DailyChecklist() {
                                 checked={formData.safety_answers[item.id] === option}
                                 onChange={(e) => handleSafetyAnswerChange(item.id, e.target.value)}
                                 style={{
-                                  margin: 0
+                                  margin: 0,
+                                  width: '16px',
+                                  height: '16px',
+                                  accentColor: option === 'yes' ? '#22c55e' : 
+                                             option === 'no' ? '#ef4444' : 
+                                             '#6b7280',
+                                  borderRadius: '4px'
                                 }}
                               />
                               <span style={{ 
-                                color: option === 'yes' ? '#10b981' : 
-                                       option === 'no' ? '#ef4444' : 
-                                       'var(--muted)'
+                                color: formData.safety_answers[item.id] === option 
+                                  ? (option === 'yes' ? '#15803d' : 
+                                     option === 'no' ? '#dc2626' : 
+                                     '#374151')
+                                  : (option === 'yes' ? '#10b981' : 
+                                     option === 'no' ? '#ef4444' : 
+                                     'var(--muted)')
                               }}>
                                 {option === 'yes' ? 'Да' : 
                                  option === 'no' ? 'Нет' : 
@@ -625,77 +718,63 @@ export default function DailyChecklist() {
                           ))}
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
               </div>
             </div>
           ))}
         </div>
           </div>
 
-          {/* План на завтра */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            padding: '24px',
-            marginBottom: '20px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-          }}>
-            <h2 style={{
-              margin: '0 0 20px 0',
-              fontSize: '20px',
-              fontWeight: '600',
-              color: 'var(--text)'
-            }}>
-              План работ на завтра
-            </h2>
 
-            <textarea
-              value={formData.next_day_plan}
-              onChange={(e) => setFormData(prev => ({ ...prev, next_day_plan: e.target.value }))}
-              placeholder="Опишите планируемые работы на завтра..."
-              rows={4}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
+              {/* Кнопка сохранения */}
+              <div style={{
                 background: 'var(--panel)',
-                color: 'var(--text)',
-                fontSize: '14px',
-                lineHeight: '1.5',
-                resize: 'vertical'
-              }}
-            />
-          </div>
-
-          {/* Кнопка сохранения */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-            textAlign: 'center'
-          }}>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                padding: '12px 32px',
-                background: saving ? 'var(--muted)' : 'var(--brand)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {saving ? 'Сохранение...' : (todayChecklist ? 'Обновить чек-лист' : 'Создать чек-лист')}
-            </button>
-          </div>
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                textAlign: 'center',
+                animation: 'fadeIn 0.3s ease-out'
+              }}>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving || Object.keys(formData.safety_answers).length < totalItems}
+                      style={{
+                        padding: '16px 40px',
+                        background: (saving || Object.keys(formData.safety_answers).length < totalItems) ? 'var(--muted)' : 'var(--brand)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        cursor: (saving || Object.keys(formData.safety_answers).length < totalItems) ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: (saving || Object.keys(formData.safety_answers).length < totalItems) ? 'none' : '0 4px 12px rgba(255, 138, 0, 0.3)',
+                        transform: (saving || Object.keys(formData.safety_answers).length < totalItems) ? 'none' : 'translateY(0)',
+                        minWidth: '200px'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!saving && Object.keys(formData.safety_answers).length >= totalItems) {
+                          e.target.style.transform = 'translateY(-2px)'
+                          e.target.style.boxShadow = '0 6px 16px rgba(255, 138, 0, 0.4)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!saving && Object.keys(formData.safety_answers).length >= totalItems) {
+                          e.target.style.transform = 'translateY(0)'
+                          e.target.style.boxShadow = '0 4px 12px rgba(255, 138, 0, 0.3)'
+                        }
+                      }}
+                    >
+                      {saving ? 'Сохранение...' : 
+                       Object.keys(formData.safety_answers).length < totalItems ? 
+                       `Заполните все пункты (${Object.keys(formData.safety_answers).length}/${totalItems})` :
+                       (todayChecklist ? 'Обновить чек-лист' : 'Создать чек-лист')}
+                    </button>
+              </div>
+            </>
+          )}
         </>
       )}
         </div>

@@ -7,10 +7,14 @@ function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
 }
 
-function getStatusInfo(status) {
+function getStatusInfo(status, obj = null) {
   const statusMap = {
     'draft': { label: 'Новый', color: '#ea580c', bgColor: '#fff7ed' },
-    'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
+    'activation_pending': { 
+      label: obj?.iko ? 'Ожидает подтверждения активации' : 'Ожидает активации', 
+      color: '#ca8a04', 
+      bgColor: '#fefce8' 
+    },
     'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
     'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
     'completed': { label: 'Завершён', color: '#6b7280', bgColor: '#f9fafb' }
@@ -19,7 +23,7 @@ function getStatusInfo(status) {
 }
 
 function ObjectCard({ obj }){
-  const statusInfo = getStatusInfo(obj.status)
+  const statusInfo = getStatusInfo(obj.status, obj)
   
   return (
     <Link 

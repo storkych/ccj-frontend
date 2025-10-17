@@ -8,12 +8,14 @@ export default function WorkPlanForm(){
   const [object, setObject] = useState(null)
   const [title, setTitle] = useState('')
   const [rows, setRows] = useState([
-    { name:'Планировка площадки', quantity:1, unit:'усл.', start_date:'2025-10-01', end_date:'2025-10-10', document_url:'' }
+    { name:'', quantity:0, unit:'усл.', start_date:'', end_date:'' }
   ])
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
 
-  const addRow = () => setRows(r => [...r, { name:'', quantity:0, unit:'шт', start_date:'', end_date:'', document_url:'' }])
+  const units = ['усл.', 'шт', 'м²', 'м³', 'м', 'кг', 'т', 'л']
+  
+  const addRow = () => setRows(r => [...r, { name:'', quantity:0, unit:'усл.', start_date:'', end_date:'' }])
   const delRow = (idx) => setRows(r => r.filter((_,i)=>i!==idx))
   const update = (idx, field, val) => setRows(r => r.map((row,i)=> i===idx ? { ...row, [field]:val } : row))
 
@@ -71,10 +73,18 @@ export default function WorkPlanForm(){
           <div key={i} className="row">
             <input className="input" style={{flex:2}} placeholder="Работа" value={row.name} onChange={e=>update(i,'name',e.target.value)} />
             <input className="input" style={{width:100}} type="number" placeholder="Кол-во" value={row.quantity} onChange={e=>update(i,'quantity',e.target.valueAsNumber)} />
-            <input className="input" style={{width:100}} placeholder="Ед." value={row.unit} onChange={e=>update(i,'unit',e.target.value)} />
+            <select 
+              className="input" 
+              style={{width:100}} 
+              value={row.unit} 
+              onChange={e=>update(i,'unit',e.target.value)}
+            >
+              {units.map(unit => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
             <input className="input" style={{width:170}} type="date" value={row.start_date} onChange={e=>update(i,'start_date',e.target.value)} />
             <input className="input" style={{width:170}} type="date" value={row.end_date} onChange={e=>update(i,'end_date',e.target.value)} />
-            <input className="input" style={{flex:2}} placeholder="Ссылка на документ (PDF)" value={row.document_url} onChange={e=>update(i,'document_url',e.target.value)} />
             <button type="button" className="btn ghost" onClick={()=>delRow(i)}>—</button>
           </div>
         ))}

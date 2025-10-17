@@ -4,6 +4,8 @@ import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, cr
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 import ViolationModal from '../components/ViolationModal.jsx'
+import NotificationToast from '../components/NotificationToast.jsx'
+import { useNotification } from '../hooks/useNotification.js'
 
 function Progress({ value }){
   return <div className="progress"><span style={{width: value+'%'}}/></div>
@@ -23,6 +25,7 @@ function Modal({ open, onClose, children, style }){
 export default function ObjectDetail(){
   const { id } = useParams()
   const { user } = useAuth()
+  const { notification, showSuccess, showError, hide } = useNotification()
   const [obj, setObj] = useState(null)
   const [loading, setLoading] = useState(true)
   const [assignOpen, setAssignOpen] = useState(false)
@@ -191,7 +194,11 @@ export default function ObjectDetail(){
   function getStatusInfo(status) {
     const statusMap = {
       'draft': { label: 'Новый', color: '#ea580c', bgColor: '#fff7ed' },
-      'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
+      'activation_pending': { 
+        label: obj?.iko ? 'Ожидает подтверждения активации' : 'Ожидает активации', 
+        color: '#ca8a04', 
+        bgColor: '#fefce8' 
+      },
       'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
       'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
       'completed_by_ssk': { label: 'Завершён ССК', color: '#7c3aed', bgColor: '#f3e8ff' },
@@ -225,6 +232,10 @@ export default function ObjectDetail(){
 
   return (
     <div className="page">
+      <NotificationToast 
+        notification={notification} 
+        onClose={hide} 
+      />
       {/* Заголовок и основная информация */}
       <div style={{marginBottom: '32px'}}>
         <div style={{
@@ -320,9 +331,9 @@ export default function ObjectDetail(){
                           try{
                             const u = await patchObject(obj.id, { ssk_id: user.id }); 
                             setObj(u);
-                            alert('Вы стали ответственным за объект')
+                            showSuccess('Вы стали ответственным за объект')
                           }catch(e){
-                            alert('Ошибка: ' + (e?.message || ''))
+                            showError('Ошибка: ' + (e?.message || ''))
                           }
                         }}
                         style={{
@@ -352,21 +363,21 @@ export default function ObjectDetail(){
                         Назначить прораба
                       </button>
                     )}
-                    {workPlans.length === 0 && (
-                      <button 
-                        className="btn small" 
-                        onClick={()=>location.assign(`/work-plans/new/${id}`)}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          borderRadius: '6px',
-                          boxShadow: 'none'
-                        }}
-                      >
-                        Добавить график работ
-                      </button>
-                    )}
+                     {workPlans.length === 0 && (obj.areas?.length||0) > 0 && (
+                       <button 
+                         className="btn small" 
+                         onClick={()=>location.assign(`/work-plans/new/${id}`)}
+                         style={{
+                           padding: '6px 12px',
+                           fontSize: '12px',
+                           fontWeight: '500',
+                           borderRadius: '6px',
+                           boxShadow: 'none'
+                         }}
+                       >
+                         Добавить график работ
+                       </button>
+                     )}
                     {(obj.areas?.length||0) === 0 && (
                       <button 
                         className="btn small" 
@@ -388,11 +399,11 @@ export default function ObjectDetail(){
                         onClick={async()=>{ 
                           try{
                             await requestActivation(obj.id);
-                            alert('Запрос на активацию отправлен')
+                            showSuccess('Запрос на активацию отправлен')
                             const updated = await getObject(id);
                             setObj(updated);
                           }catch(e){
-                            alert('Ошибка активации: ' + (e?.message || ''))
+                            showError('Ошибка активации: ' + (e?.message || ''))
                           }
                         }}
                         style={{
@@ -406,7 +417,7 @@ export default function ObjectDetail(){
                           boxShadow: 'none'
                         }}
                       >
-                        Активировать
+                        Запросить активацию
                       </button>
                     )}
                     {obj.status === 'active' && Number(obj.work_progress ?? 0) === 100 && (
@@ -415,11 +426,11 @@ export default function ObjectDetail(){
                         onClick={async()=>{ 
                           try{
                             await completeObjectBySSK(obj.id);
-                            alert('Объект завершён ССК')
+                            showSuccess('Объект завершён ССК')
                             const updated = await getObject(id);
                             setObj(updated);
                           }catch(e){
-                            alert('Ошибка завершения: ' + (e?.message || ''))
+                            showError('Ошибка завершения: ' + (e?.message || ''))
                           }
                         }}
                         style={{
@@ -436,21 +447,21 @@ export default function ObjectDetail(){
                         Завершить объект
                       </button>
                     )}
-                    {obj.status !== 'completed' && obj.status !== 'completed_by_ssk' && (
-                      <button 
-                        className="btn small" 
-                        onClick={()=>setViolationModalOpen(true)}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          borderRadius: '6px',
-                          boxShadow: 'none'
-                        }}
-                      >
-                        Выписать нарушение
-                      </button>
-                    )}
+                     {obj.status === 'active' && (
+                       <button 
+                         className="btn small" 
+                         onClick={()=>setViolationModalOpen(true)}
+                         style={{
+                           padding: '6px 12px',
+                           fontSize: '12px',
+                           fontWeight: '500',
+                           borderRadius: '6px',
+                           boxShadow: 'none'
+                         }}
+                       >
+                         Выписать нарушение
+                       </button>
+                     )}
                       </>
                     ) : (
                       <div style={{
@@ -482,7 +493,7 @@ export default function ObjectDetail(){
                           boxShadow: 'none'
                         }}
                       >
-                        Активировать объект
+                        Подтвердить активацию
                       </button>
                     )}
                     {obj.status === 'completed_by_ssk' && (
@@ -491,11 +502,11 @@ export default function ObjectDetail(){
                         onClick={async()=>{ 
                           try{
                             await completeObjectByIKO(obj.id);
-                            alert('Объект полностью завершён')
+                            showSuccess('Объект полностью завершён')
                             const updated = await getObject(id);
                             setObj(updated);
                           }catch(e){
-                            alert('Ошибка завершения: ' + (e?.message || ''))
+                            showError('Ошибка завершения: ' + (e?.message || ''))
                           }
                         }}
                         style={{
@@ -1065,7 +1076,7 @@ export default function ObjectDetail(){
                                         const updated = await getWorkPlan(workPlanDetails.id)
                                         setWorkPlanDetails(updated)
                                       } catch (e) {
-                                        alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
                                       } finally {
                                         setUpdatingItems(prev => {
                                           const next = new Set(prev)
@@ -1114,7 +1125,7 @@ export default function ObjectDetail(){
                                         const updated = await getWorkPlan(workPlanDetails.id)
                                         setWorkPlanDetails(updated)
                                       } catch (e) {
-                                        alert('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
                                       } finally {
                                         setUpdatingItems(prev => {
                                           const next = new Set(prev)
@@ -1483,7 +1494,7 @@ export default function ObjectDetail(){
                     setObj(fresh)
                     setAreaModalOpen(false)
                   }catch(e){
-                    alert('Ошибка сохранения: '+(e?.message||''))
+                    showError('Ошибка сохранения: '+(e?.message||''))
                   }finally{
                     setAreaSaving(false)
                   }
@@ -1556,17 +1567,17 @@ export default function ObjectDetail(){
                     Object.entries(filteredData).map(([key, value]) => [key, value === 'true'])
                   )
                   await ikoActivationCheck(obj.id, booleanData)
-                  alert('Объект успешно активирован')
+                  showSuccess('Объект успешно активирован')
                   const updated = await getObject(id)
                   setObj(updated)
                   setActivationModalOpen(false)
                 }catch(e){
-                  alert('Ошибка активации: ' + (e?.message || ''))
+                  showError('Ошибка активации: ' + (e?.message || ''))
                 }finally{
                   setActivationSaving(false)
                 }
               }} disabled={activationSaving}>
-                {activationSaving ? 'Активируем...' : 'Активировать объект'}
+                {activationSaving ? 'Подтверждаем...' : 'Подтвердить активацию'}
               </button>
             </div>
           </div>
@@ -1583,7 +1594,7 @@ export default function ObjectDetail(){
           
           <form onSubmit={async(e)=>{
             e.preventDefault()
-            if(!violationData.title.trim()) return alert('Заголовок обязателен')
+            if(!violationData.title.trim()) return showError('Заголовок обязателен')
             setViolationSaving(true)
             try{
               // Конвертируем фотографии в base64
@@ -1616,7 +1627,7 @@ export default function ObjectDetail(){
               
               console.log('Отправляем данные нарушения:', payload)
               await createViolationWithPhotos(payload)
-              alert('Нарушение создано')
+              showSuccess('Нарушение создано')
               setViolationModalOpen(false)
               setViolationData({
                 title: '',
@@ -1627,7 +1638,7 @@ export default function ObjectDetail(){
               })
               setViolationPhotos([])
             }catch(e){
-              alert('Ошибка создания нарушения: ' + (e?.message || ''))
+              showError('Ошибка создания нарушения: ' + (e?.message || ''))
             }finally{
               setViolationSaving(false)
             }
