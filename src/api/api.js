@@ -252,7 +252,7 @@ async function ticketsHttp(path, { method='GET', headers={}, body, retry=true } 
 }
 
 export async function createTicket(data){ 
-  return await ticketsHttp('/api/tickets/create', { method:'POST', body: JSON.stringify(data) })
+  return await ticketsHttp('/api/tickets/create/', { method:'POST', body: JSON.stringify(data) })
 }
 
 export async function getSchedules({ object_id } = {}){

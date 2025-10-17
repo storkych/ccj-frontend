@@ -9,11 +9,11 @@ function Progress({ value }){
 
 function getStatusInfo(status) {
   const statusMap = {
-    'draft': { label: 'Черновик', color: '#ea580c', bgColor: '#fff7ed' },
+    'draft': { label: 'Новый', color: '#ea580c', bgColor: '#fff7ed' },
     'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
     'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
     'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
-    'completed': { label: 'Завершён', color: '#1d4ed8', bgColor: '#eff6ff' }
+    'completed': { label: 'Завершён', color: '#6b7280', bgColor: '#f9fafb' }
   }
   return statusMap[status] || { label: status || '—', color: '#6b7280', bgColor: '#f9fafb' }
 }
@@ -463,7 +463,7 @@ export default function Objects(){
                 }}
               >
                 <option value="all">Все</option>
-                <option value="draft">Черновик</option>
+                <option value="draft">Новый</option>
                 <option value="activation_pending">Ожидает активации</option>
                 <option value="active">Активен</option>
                 <option value="suspended">Приостановлен</option>

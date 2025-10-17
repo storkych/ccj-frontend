@@ -190,12 +190,12 @@ export default function ObjectDetail(){
 
   function getStatusInfo(status) {
     const statusMap = {
-      'draft': { label: 'Черновик', color: '#ea580c', bgColor: '#fff7ed' },
+      'draft': { label: 'Новый', color: '#ea580c', bgColor: '#fff7ed' },
       'activation_pending': { label: 'Ожидает активации', color: '#ca8a04', bgColor: '#fefce8' },
       'active': { label: 'Активен', color: '#15803d', bgColor: '#f0fdf4' },
       'suspended': { label: 'Приостановлен', color: '#ca8a04', bgColor: '#fefce8' },
       'completed_by_ssk': { label: 'Завершён ССК', color: '#7c3aed', bgColor: '#f3e8ff' },
-      'completed': { label: 'Завершён', color: '#1d4ed8', bgColor: '#eff6ff' }
+      'completed': { label: 'Завершён', color: '#6b7280', bgColor: '#f9fafb' }
     }
     return statusMap[status] || { label: status || '—', color: '#6b7280', bgColor: '#f9fafb' }
   }
@@ -313,7 +313,7 @@ export default function ObjectDetail(){
                 {/* Действия ССК */}
                 {user?.role === 'ssk' && (
                   <>
-                    {!obj.ssk && (
+                    {!obj.ssk ? (
                       <button 
                         className="btn small" 
                         onClick={async()=>{ 
@@ -335,8 +335,9 @@ export default function ObjectDetail(){
                       >
                         Стать ответственным
                       </button>
-                    )}
-                    {!obj.foreman && (
+                    ) : obj.ssk.id === user.id ? (
+                      <>
+                        {!obj.foreman && (
                       <button 
                         className="btn small" 
                         onClick={openAssign}
@@ -435,6 +436,31 @@ export default function ObjectDetail(){
                         Завершить объект
                       </button>
                     )}
+                    {obj.status !== 'completed' && obj.status !== 'completed_by_ssk' && (
+                      <button 
+                        className="btn small" 
+                        onClick={()=>setViolationModalOpen(true)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Выписать нарушение
+                      </button>
+                    )}
+                      </>
+                    ) : (
+                      <div style={{
+                        color: 'var(--muted)',
+                        fontSize: '12px',
+                        fontStyle: 'italic'
+                      }}>
+                        Объект уже назначен другому ССК
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -489,22 +515,6 @@ export default function ObjectDetail(){
                   </>
                 )}
 
-                {/* Общие действия */}
-                {obj.status !== 'completed' && obj.status !== 'completed_by_ssk' && (
-                  <button 
-                    className="btn small" 
-                    onClick={()=>setViolationModalOpen(true)}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      borderRadius: '6px',
-                      boxShadow: 'none'
-                    }}
-                  >
-                    Выписать нарушение
-                  </button>
-                )}
               </div>
             </div>
           </div>

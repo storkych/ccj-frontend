@@ -89,7 +89,7 @@ export default function Login(){
           textAlign: 'center',
           marginBottom: '24px'
         }}>
-          <img src="/transparent bg.svg" alt="ITC СтройКонтроль" style={{
+          <img src="/transparent bg.svg" alt="СтройКонтроль" style={{
             width: 48,
             height: 48,
             marginBottom: '16px'
@@ -100,11 +100,6 @@ export default function Login(){
             fontWeight: '700',
             color: 'var(--text)'
           }}>Вход в систему</h2>
-          <p style={{
-            margin: '8px 0 0 0',
-            fontSize: '14px',
-            color: 'var(--muted)'
-          }}>ITC СтройКонтроль</p>
         </div>
         
         <div className="form">
