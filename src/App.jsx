@@ -199,7 +199,7 @@ function Layout({ children }){
       
       
       
-       <aside style={{position: 'relative'}}>
+       <aside>
          <div className="logo" style={{display: 'flex', justifyContent: 'center', marginBottom: '18px'}}>
            <img src="/transparent bg.svg" alt="СтройКонтроль" style={{width: 70, height: 70}} />
          </div>
@@ -239,7 +239,7 @@ function Layout({ children }){
 
 
       <NotificationContext.Provider value={{ updateNotificationCount }}>
-        <div>
+        <div className="main-content">
           <header>
             {user ? (
               <div className="row" style={{gap:12, alignItems:'center', width:'100%'}}>
@@ -364,7 +364,7 @@ function Layout({ children }){
             </div>
           ) : null}
         </header>
-        <main>{children}</main>
+        <main className="page-content">{children}</main>
         </div>
       </NotificationContext.Provider>
     </div>

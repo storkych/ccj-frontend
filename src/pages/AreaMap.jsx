@@ -19,7 +19,8 @@ export default function AreaMap({
   useEffect(()=>{
     if (mapRef.current) return
     const map = L.map(containerRef.current, {
-      attributionControl: false
+      attributionControl: false,
+      scrollWheelZoom: false
     }).setView(center, zoom)
     mapRef.current = { map }
 
@@ -29,18 +30,6 @@ export default function AreaMap({
 
     const drawn = new L.FeatureGroup().addTo(map)
     mapRef.current.drawn = drawn
-
-    // existing polygons
-    try{
-      polygons.forEach(p => {
-        if (!p?.geometry) return
-        const layer = L.geoJSON({ type:'Feature', properties:{}, geometry: p.geometry })
-        layer.addTo(drawn)
-      })
-      if (drawn.getLayers().length > 0) {
-        map.fitBounds(drawn.getBounds(), { padding:[20,20] })
-      }
-    }catch{}
 
     if (!readOnly) {
       const drawControl = new L.Control.Draw({
@@ -87,7 +76,21 @@ export default function AreaMap({
     try{
       polygons.forEach(p => {
         if (!p?.geometry) return
-        const layer = L.geoJSON({ type:'Feature', properties:{}, geometry: p.geometry })
+        const layer = L.geoJSON({ type:'Feature', properties:{}, geometry: p.geometry }, {
+          style: p.color ? {
+            color: p.color,
+            fillColor: p.color,
+            fillOpacity: 0.3,
+            weight: 2,
+            opacity: 0.8
+          } : {
+            color: '#3b82f6',
+            fillColor: '#3b82f6',
+            fillOpacity: 0.3,
+            weight: 2,
+            opacity: 0.8
+          }
+        })
         layer.addTo(drawn)
       })
       if (drawn.getLayers().length > 0) {

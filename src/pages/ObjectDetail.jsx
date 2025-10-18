@@ -50,10 +50,20 @@ export default function ObjectDetail(){
   })
   const [violationPhotos, setViolationPhotos] = useState([])
   const [violationSaving, setViolationSaving] = useState(false)
+  const [visibleSubAreas, setVisibleSubAreas] = useState(new Set())
   const [violations, setViolations] = useState([])
   const [violationsLoading, setViolationsLoading] = useState(false)
   const [selectedViolation, setSelectedViolation] = useState(null)
   const [violationDetailModalOpen, setViolationDetailModalOpen] = useState(false)
+
+  // Инициализация видимых подполигонов
+  useEffect(() => {
+    if (workPlanDetails?.work_items) {
+      const allSubAreaIds = workPlanDetails.work_items
+        .flatMap(item => item.sub_areas?.map(subArea => subArea.id) || [])
+      setVisibleSubAreas(new Set(allSubAreaIds))
+    }
+  }, [workPlanDetails])
 
   const ChecklistItem = ({ id, text }) => (
     <div className="row" style={{gap:8, alignItems:'center', padding:'8px 12px', borderRadius:'6px', backgroundColor: checklistData[id] ? 'var(--bg-light)' : 'transparent', border: checklistData[id] ? '1px solid var(--border)' : '1px solid transparent'}}>
@@ -345,7 +355,7 @@ export default function ObjectDetail(){
                       </button>
                     ) : obj.ssk.id === user.id ? (
                       <>
-                        {!obj.foreman && (
+                    {!obj.foreman && (
                       <button 
                         className="btn small" 
                         onClick={openAssign}
@@ -361,20 +371,20 @@ export default function ObjectDetail(){
                       </button>
                     )}
                      {workPlans.length === 0 && (obj.areas?.length||0) > 0 && (
-                       <button 
-                         className="btn small" 
-                         onClick={()=>location.assign(`/work-plans/new/${id}`)}
-                         style={{
-                           padding: '6px 12px',
-                           fontSize: '12px',
-                           fontWeight: '500',
-                           borderRadius: '6px',
-                           boxShadow: 'none'
-                         }}
-                       >
-                         Добавить график работ
-                       </button>
-                     )}
+                      <button 
+                        className="btn small" 
+                        onClick={()=>location.assign(`/work-plans/new/${id}`)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          borderRadius: '6px',
+                          boxShadow: 'none'
+                        }}
+                      >
+                        Добавить график работ
+                      </button>
+                    )}
                     {(obj.areas?.length||0) === 0 && (
                       <button 
                         className="btn small" 
@@ -457,7 +467,7 @@ export default function ObjectDetail(){
                          }}
                        >
                          Выписать нарушение
-                       </button>
+                      </button>
                      )}
                       </>
                     ) : (
@@ -755,8 +765,101 @@ export default function ObjectDetail(){
           }}>
             <AreaMap
               readOnly
-              polygons={(obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name }))}
+              polygons={(() => {
+                const mainPolygons = (obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name, color: '#3b82f6' }))
+                const subPolygons = (workPlanDetails?.work_items?.flatMap(item => 
+                  item.sub_areas?.filter(subArea => visibleSubAreas.has(subArea.id))
+                    .map(subArea => ({
+                      geometry: subArea.geometry,
+                      name: subArea.name,
+                      color: subArea.color || '#6b7280'
+                    })) || []
+                ) || [])
+                
+                return [...mainPolygons, ...subPolygons]
+              })()}
             />
+            
+            {/* Селекторы подполигонов */}
+            {workPlanDetails?.work_items && workPlanDetails.work_items.some(item => item.sub_areas?.length > 0) && (
+              <div style={{
+                padding: '16px 20px',
+                borderTop: '1px solid var(--border)',
+                background: 'var(--bg)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexWrap: 'wrap'
+                }}>
+                  <span style={{
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--muted)',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    Управление подполигонами:
+                  </span>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                  {workPlanDetails.work_items.flatMap(item => 
+                    item.sub_areas?.map(subArea => (
+                      <label key={subArea.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 12px',
+                        background: 'var(--bg)',
+                        color: 'var(--text)',
+                        border: `2px solid ${visibleSubAreas.has(subArea.id) ? (subArea.color || '#6b7280') : 'var(--border)'}`,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        userSelect: 'none',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        boxShadow: visibleSubAreas.has(subArea.id) ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
+                      }}>
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: visibleSubAreas.has(subArea.id) ? 'white' : (subArea.color || '#6b7280'),
+                          border: visibleSubAreas.has(subArea.id) ? `2px solid ${subArea.color || '#6b7280'}` : '2px solid white',
+                          boxShadow: '0 0 0 1px var(--border)'
+                        }} />
+                        <span>
+                          {subArea.name}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={visibleSubAreas.has(subArea.id)}
+                          onChange={(e) => {
+                            const newVisible = new Set(visibleSubAreas)
+                            if (e.target.checked) {
+                              newVisible.add(subArea.id)
+                            } else {
+                              newVisible.delete(subArea.id)
+                            }
+                            setVisibleSubAreas(newVisible)
+                          }}
+                          style={{ 
+                            position: 'absolute',
+                            opacity: 0,
+                            pointerEvents: 'none'
+                          }}
+                        />
+                      </label>
+                    )) || []
+                  )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -888,122 +991,78 @@ export default function ObjectDetail(){
                 </div>
                 
                 <div style={{
-                  background: 'var(--bg)',
+                  background: 'var(--panel)',
                   border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  overflow: 'hidden'
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  marginBottom: '20px'
                 }}>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: '14px'
-                  }}>
-                    <thead>
-                      <tr style={{
-                        background: 'var(--bg-secondary)',
+                  {/* Заголовок таблицы */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, var(--brand) 0%, #1f2937 100%)',
+                    padding: '16px 20px',
                         borderBottom: '1px solid var(--border)'
                       }}>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: user?.role === 'ssk' ? '2fr 100px 100px 150px 150px 200px 120px' : '2fr 100px 100px 150px 150px 200px',
+                      gap: '12px',
+                      alignItems: 'center',
                           fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Название
-                        </th>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Количество
-                        </th>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Единица
-                        </th>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Период
-                        </th>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Статус
-                        </th>
-                        <th style={{
-                          padding: '12px 16px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: 'var(--text)',
-                          fontSize: '13px'
-                        }}>
-                          Документ
-                        </th>
+                      fontSize: '14px',
+                      color: 'white',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      <div>Название работы</div>
+                      <div>Количество</div>
+                      <div>Единица</div>
+                      <div>Период</div>
+                      <div>Статус</div>
+                      <div>Подполигоны</div>
                         {user?.role === 'ssk' && (
-                          <th style={{
-                            padding: '12px 16px',
-                            textAlign: 'left',
-                            fontWeight: '600',
-                            color: 'var(--text)',
-                            fontSize: '13px'
-                          }}>
-                            Действия
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
+                        <div>Действия</div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Строки таблицы */}
                       {workPlanDetails.work_items.map((item, idx) => (
-                        <tr key={item.id || idx} style={{
-                          borderBottom: '1px solid var(--border)',
+                    <div key={item.id || idx} style={{
+                      padding: '16px 20px',
+                      borderBottom: idx < workPlanDetails.work_items.length - 1 ? '1px solid var(--border)' : 'none',
+                      background: idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)',
                           transition: 'background-color 0.2s ease'
                         }}
                         onMouseEnter={(e) => {
-                          e.target.style.background = 'var(--bg-light)'
+                      e.target.style.background = 'var(--bg-secondary)'
                         }}
                         onMouseLeave={(e) => {
-                          e.target.style.background = 'transparent'
-                        }}>
-                          <td style={{
-                            padding: '12px 16px',
+                      e.target.style.background = idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)'
+                    }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: user?.role === 'ssk' ? '2fr 100px 100px 150px 150px 200px 120px' : '2fr 100px 100px 150px 150px 200px',
+                        gap: '12px',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{
                             color: 'var(--text)',
                             fontWeight: '500'
                           }}>
                             {item.name}
-                          </td>
-                          <td style={{
-                            padding: '12px 16px',
+                        </div>
+                        <div style={{
                             color: 'var(--text)'
                           }}>
                             {item.quantity || '—'}
-                          </td>
-                          <td style={{
-                            padding: '12px 16px',
+                        </div>
+                        <div style={{
                             color: 'var(--muted)',
                             fontSize: '13px'
                           }}>
                             {item.unit || '—'}
-                          </td>
-                          <td style={{
-                            padding: '12px 16px',
+                        </div>
+                        <div style={{
                             color: 'var(--text)',
                             fontSize: '13px'
                           }}>
@@ -1015,10 +1074,8 @@ export default function ObjectDetail(){
                                 </div>
                               </div>
                             ) : '—'}
-                          </td>
-                          <td style={{
-                            padding: '12px 16px'
-                          }}>
+                        </div>
+                        <div>
                             <span style={{
                               background: item.status === 'planned' ? '#fef3c7' : 
                                          item.status === 'in_progress' ? '#dbeafe' : 
@@ -1035,32 +1092,49 @@ export default function ObjectDetail(){
                                item.status === 'in_progress' ? 'В работе' : 
                                item.status === 'done' ? 'Выполнено' : item.status}
                             </span>
-                          </td>
-                          <td style={{
-                            padding: '12px 16px'
-                          }}>
-                            {item.document_url ? (
-                              <a 
-                                href={item.document_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="btn small"
-                                style={{
-                                  padding: '4px 8px',
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-start' }}>
+                          {item.sub_areas && item.sub_areas.length > 0 ? (
+                            item.sub_areas.map((subArea, subIdx) => (
+                               <div key={subArea.id || subIdx} style={{
+                                 display: 'inline-flex',
+                                 alignItems: 'center',
+                                 gap: '8px',
+                                 padding: '6px 10px',
+                                 background: 'var(--bg-light)',
+                                 borderRadius: '6px',
+                                 border: '1px solid var(--border)',
+                                 whiteSpace: 'nowrap',
+                                 maxWidth: 'fit-content'
+                               }}>
+                                 <div style={{
+                                   width: '12px',
+                                   height: '12px',
+                                   borderRadius: '50%',
+                                   background: subArea.color || '#6b7280',
+                                   border: '2px solid white',
+                                   boxShadow: '0 0 0 1px var(--border)',
+                                   flexShrink: 0
+                                 }} />
+                                 <span style={{
                                   fontSize: '12px',
-                                  textDecoration: 'none'
-                                }}
-                              >
-                                Открыть
-                              </a>
+                                   color: 'var(--text)',
+                                   fontWeight: '500',
+                                   whiteSpace: 'nowrap',
+                                   overflow: 'hidden',
+                                   textOverflow: 'ellipsis',
+                                   maxWidth: '140px'
+                                 }}>
+                                   {subArea.name}
+                                 </span>
+                               </div>
+                            ))
                             ) : (
                               <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
                             )}
-                          </td>
+                        </div>
                           {user?.role === 'ssk' && (
-                            <td style={{
-                              padding: '12px 16px'
-                            }}>
+                          <div>
                               <div style={{display: 'flex', gap: '6px'}}>
                                 {item.status !== 'in_progress' && item.status !== 'done' && (
                                   <button 
@@ -1073,7 +1147,7 @@ export default function ObjectDetail(){
                                         const updated = await getWorkPlan(workPlanDetails.id)
                                         setWorkPlanDetails(updated)
                                       } catch (e) {
-                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
+                                      showError('Ошибка обновления статуса: ' + (e?.message || ''))
                                       } finally {
                                         setUpdatingItems(prev => {
                                           const next = new Set(prev)
@@ -1083,17 +1157,18 @@ export default function ObjectDetail(){
                                       }
                                     }}
                                     style={{
-                                      padding: '4px 8px',
-                                      fontSize: '12px',
+                                    padding: '8px 16px',
+                                    fontSize: '13px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
                                       color: 'white',
                                       border: 'none',
-                                      borderRadius: '4px',
+                                    borderRadius: '8px',
                                       cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
-                                      fontWeight: '500',
+                                    fontWeight: '600',
                                       transition: 'all 0.2s ease',
                                       opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                      boxShadow: 'none'
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    minWidth: '80px'
                                     }}
                                     onMouseEnter={(e) => {
                                       if (!updatingItems.has(item.id)) {
@@ -1122,7 +1197,7 @@ export default function ObjectDetail(){
                                         const updated = await getWorkPlan(workPlanDetails.id)
                                         setWorkPlanDetails(updated)
                                       } catch (e) {
-                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
+                                      showError('Ошибка обновления статуса: ' + (e?.message || ''))
                                       } finally {
                                         setUpdatingItems(prev => {
                                           const next = new Set(prev)
@@ -1132,17 +1207,18 @@ export default function ObjectDetail(){
                                       }
                                     }}
                                     style={{
-                                      padding: '4px 8px',
-                                      fontSize: '12px',
+                                    padding: '8px 16px',
+                                    fontSize: '13px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
                                       color: 'white',
                                       border: 'none',
-                                      borderRadius: '4px',
+                                    borderRadius: '8px',
                                       cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
-                                      fontWeight: '500',
+                                    fontWeight: '600',
                                       transition: 'all 0.2s ease',
                                       opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                      boxShadow: 'none'
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    minWidth: '80px'
                                     }}
                                     onMouseEnter={(e) => {
                                       if (!updatingItems.has(item.id)) {
@@ -1164,21 +1240,24 @@ export default function ObjectDetail(){
                                   <span style={{
                                     background: '#d1fae5',
                                     color: '#065f46',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    fontWeight: '500'
+                                  padding: '8px 16px',
+                                  borderRadius: '8px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                  minWidth: '80px',
+                                  display: 'inline-block',
+                                  textAlign: 'center'
                                   }}>
                                     Выполнено
                                   </span>
                                 )}
                               </div>
-                            </td>
+                          </div>
                           )}
-                        </tr>
+                      </div>
+                    </div>
                       ))}
-                    </tbody>
-                  </table>
                 </div>
               </>
             ) : (
