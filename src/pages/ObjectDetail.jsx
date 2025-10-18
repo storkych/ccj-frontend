@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO, getViolations } from '../api/api.js'
+import { getChangeRequests, makeChangeRequestDecision } from '../api/workPlans.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 import ViolationModal from '../components/ViolationModal.jsx'
@@ -55,6 +56,17 @@ export default function ObjectDetail(){
   const [violationsLoading, setViolationsLoading] = useState(false)
   const [selectedViolation, setSelectedViolation] = useState(null)
   const [violationDetailModalOpen, setViolationDetailModalOpen] = useState(false)
+  
+  // Состояние для запросов на изменение
+  const [changeRequests, setChangeRequests] = useState([])
+  const [requestsLoading, setRequestsLoading] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [requestDetailModalOpen, setRequestDetailModalOpen] = useState(false)
+  const [decisionModalOpen, setDecisionModalOpen] = useState(false)
+  const [decision, setDecision] = useState('')
+  const [decisionComment, setDecisionComment] = useState('')
+  const [editedItems, setEditedItems] = useState([])
+  const [processing, setProcessing] = useState(false)
 
   // Инициализация видимых подполигонов
   useEffect(() => {
@@ -126,6 +138,12 @@ export default function ObjectDetail(){
       setViolations([])
     }).finally(()=>setViolationsLoading(false))
   }, [obj])
+
+  // Загрузка запросов на изменение для ССК
+  useEffect(()=>{
+    if(!obj || user?.role !== 'ssk') return
+    loadChangeRequests()
+  }, [obj, user])
 
   const openAssign = async () => {
     const res = await getForemen()
@@ -233,6 +251,168 @@ export default function ObjectDetail(){
   const closeViolationDetailModal = () => {
     setSelectedViolation(null)
     setViolationDetailModalOpen(false)
+  }
+
+  // Функции для работы с запросами на изменение
+  const loadChangeRequests = async () => {
+    if (user?.role !== 'ssk') return
+    
+    setRequestsLoading(true)
+    try {
+      const response = await getChangeRequests({ object_id: id })
+      setChangeRequests(response.items || [])
+    } catch (error) {
+      console.error('Ошибка загрузки запросов:', error)
+      showError('Ошибка загрузки запросов: ' + (error?.message || ''))
+    } finally {
+      setRequestsLoading(false)
+    }
+  }
+
+  const handleDecision = async (decisionType) => {
+    if (!decisionComment.trim()) {
+      showError('Укажите комментарий')
+      return
+    }
+
+    setProcessing(true)
+    try {
+      await makeChangeRequestDecision(
+        selectedRequest.id, 
+        decisionType, 
+        decisionComment, 
+        null
+      )
+      
+      showSuccess(`Решение "${decisionType === 'approve' ? 'Одобрено' : 'Отклонено'}" принято`)
+      setRequestDetailModalOpen(false)
+      setDecisionComment('')
+      setEditedItems([])
+      loadChangeRequests() // Перезагружаем список
+      
+      // Обновляем рабочий план после принятия решения
+      if (workPlanDetails && decisionType === 'approve') {
+        try {
+          const updated = await getWorkPlan(workPlanDetails.id)
+          setWorkPlanDetails(updated)
+        } catch (e) {
+          console.warn('Ошибка обновления плана работ:', e)
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка принятия решения:', error)
+      showError('Ошибка принятия решения: ' + (error?.message || ''))
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const openDecisionModal = (request) => {
+    setSelectedRequest(request)
+    setDecisionComment('')
+    setEditedItems(request.new_items_data || [])
+    setDecisionModalOpen(true)
+  }
+
+  const openRequestDetailModal = (request) => {
+    setSelectedRequest(request)
+    setRequestDetailModalOpen(true)
+  }
+
+  // Функция для сравнения полей и определения изменений
+  const getChangedFields = (oldItem, newItem) => {
+    const changes = []
+    
+    // Сравниваем каждое поле отдельно
+    if (oldItem.name !== newItem.name) {
+      changes.push({ field: 'name', old: oldItem.name, new: newItem.name })
+    }
+    if (oldItem.quantity !== newItem.quantity) {
+      changes.push({ field: 'quantity', old: oldItem.quantity, new: newItem.quantity })
+    }
+    if (oldItem.unit !== newItem.unit) {
+      changes.push({ field: 'unit', old: oldItem.unit, new: newItem.unit })
+    }
+    if (oldItem.start_date !== newItem.start_date) {
+      changes.push({ field: 'start_date', old: oldItem.start_date, new: newItem.start_date })
+    }
+    if (oldItem.end_date !== newItem.end_date) {
+      changes.push({ field: 'end_date', old: oldItem.end_date, new: newItem.end_date })
+    }
+    
+    // Пропускаем сравнение подполигонов - сервер не возвращает их в old_items_data
+    
+    return changes
+  }
+
+  // Функция для сравнения элементов и определения изменений
+  const getChangedItems = (oldItems, newItems) => {
+    if (!oldItems || !newItems) return { added: [], modified: [], removed: [] }
+    
+    const added = []
+    const modified = []
+    const removed = []
+    
+    // Находим добавленные элементы (есть в новых, нет в старых)
+    newItems.forEach(newItem => {
+      if (!oldItems.find(oldItem => oldItem.id === newItem.id)) {
+        added.push(newItem)
+      }
+    })
+    
+    // Находим удаленные элементы (есть в старых, нет в новых)
+    oldItems.forEach(oldItem => {
+      if (!newItems.find(newItem => newItem.id === oldItem.id)) {
+        removed.push(oldItem)
+      }
+    })
+    
+    // Находим измененные элементы (есть в обоих, но отличаются)
+    newItems.forEach(newItem => {
+      const oldItem = oldItems.find(old => old.id === newItem.id)
+      if (oldItem) {
+        const changedFields = getChangedFields(oldItem, newItem)
+        if (changedFields.length > 0) {
+          modified.push({ 
+            old: oldItem, 
+            new: newItem, 
+            changedFields: changedFields 
+          })
+        }
+      }
+    })
+    
+    return { added, modified, removed }
+  }
+
+  const getStatusText = (status) => {
+    const statusMap = {
+      'pending': 'Ожидает решения',
+      'approved': 'Одобрено',
+      'rejected': 'Отклонено',
+      'edited': 'Отредактировано'
+    }
+    return statusMap[status] || status
+  }
+
+  const getStatusColor = (status) => {
+    const colorMap = {
+      'pending': '#f59e0b',
+      'approved': '#10b981',
+      'rejected': '#ef4444',
+      'edited': '#3b82f6'
+    }
+    return colorMap[status] || '#6b7280'
+  }
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   const statusInfo = getStatusInfo(obj?.status)
@@ -903,73 +1083,103 @@ export default function ObjectDetail(){
           </div>
         ) : workPlans.length > 0 && workPlanDetails ? (
           <>
-            {/* Информация о плане */}
+            {/* Информация о плане - компактная */}
             <div style={{
               background: 'var(--bg-light)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '20px'
-            }}>
-              <div style={{
+              borderRadius: '6px',
+              padding: '8px 12px',
+              marginBottom: '16px',
                 display: 'flex',
+              alignItems: 'center',
                 justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '12px'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{
-                    margin: '0 0 8px 0',
-                    fontSize: '18px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{
+                  fontSize: '14px',
                     fontWeight: '600',
                     color: 'var(--text)'
                   }}>
                     {workPlans[0].title || `План #${workPlans[0].id}`}
-                  </h4>
-                  <div style={{
-                    display: 'flex',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                    alignItems: 'center'
-                  }}>
+                </span>
                     <span style={{
-                      padding: '4px 8px',
+                  padding: '2px 6px',
                       backgroundColor: 'var(--bg-secondary)',
                       color: 'var(--muted)',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
                       fontWeight: '500',
                       border: '1px solid var(--border)'
                     }}>
                       ID: {workPlans[0].id}
                     </span>
                     <span style={{
-                      padding: '4px 8px',
+                  padding: '2px 6px',
                       backgroundColor: 'var(--bg-secondary)',
                       color: 'var(--muted)',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
                       fontWeight: '500',
                       border: '1px solid var(--border)'
                     }}>
-                      📅 Создан: {new Date(workPlans[0].created_at).toLocaleDateString('ru-RU')}
+                  {new Date(workPlans[0].created_at).toLocaleDateString('ru-RU')}
                     </span>
                     {workPlans[0].versions && workPlans[0].versions.length > 0 && (
                       <span style={{
-                        padding: '4px 8px',
+                    padding: '2px 6px',
                         backgroundColor: 'var(--bg-secondary)',
                         color: 'var(--muted)',
-                        borderRadius: '6px',
-                        fontSize: '12px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
                         fontWeight: '500',
                         border: '1px solid var(--border)'
                       }}>
-                        📝 Версий: {workPlans[0].versions.length}
+                    📝 {workPlans[0].versions.length} версий
                       </span>
                     )}
                   </div>
-                </div>
-              </div>
+              
+              {/* Кнопка редактирования плана */}
+              {(user?.role === 'ssk' || user?.role === 'foreman') && (
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    // Переходим на страницу создания плана с параметрами редактирования
+                    const editParams = new URLSearchParams({
+                      edit: 'true',
+                      planId: workPlans[0].id,
+                      objectId: id
+                    })
+                    window.location.href = `/work-plans/new/${id}?${editParams.toString()}`
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    background: 'var(--brand)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = '#e67e00'
+                    e.target.style.transform = 'translateY(-1px)'
+                    e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'var(--brand)'
+                    e.target.style.transform = 'translateY(0)'
+                    e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
+                  }}
+         >
+           Редактировать план
+         </button>
+              )}
             </div>
 
             {/* Таблица элементов работ */}
@@ -1137,7 +1347,7 @@ export default function ObjectDetail(){
                               <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
                             )}
                         </div>
-                          {(user?.role === 'ssk' || user?.role === 'foreman') && (
+                          {(user?.role === 'ssk' || user?.role === 'foreman') && obj.status === 'active' && (
                           <div>
                               <div style={{display: 'flex', gap: '6px'}}>
                                 {/* Начать работу - могут и прораб и ССК */}
@@ -1163,7 +1373,7 @@ export default function ObjectDetail(){
                                     }}
                                     style={{
                                     padding: '6px 12px',
-                                    fontSize: '12px',
+                                      fontSize: '12px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
                                       color: 'white',
                                       border: 'none',
@@ -1218,7 +1428,7 @@ export default function ObjectDetail(){
                                     }}
                                     style={{
                                     padding: '6px 12px',
-                                    fontSize: '12px',
+                                      fontSize: '12px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
                                       color: 'white',
                                       border: 'none',
@@ -1278,7 +1488,7 @@ export default function ObjectDetail(){
                                         background: updatingItems.has(item.id) ? '#6b7280' : '#ef4444',
                                         color: 'white',
                                         border: 'none',
-                                      borderRadius: '6px',
+                                    borderRadius: '6px',
                                         cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
                                       fontWeight: '600',
                                         transition: 'all 0.2s ease',
@@ -1371,6 +1581,17 @@ export default function ObjectDetail(){
                               </div>
                           </div>
                           )}
+                          {(user?.role === 'ssk' || user?.role === 'foreman') && obj.status !== 'active' && (
+                          <div>
+                              <span style={{
+                                color: 'var(--muted)',
+                                fontSize: '13px',
+                                fontStyle: 'italic'
+                              }}>
+                                Объект не активирован
+                              </span>
+                          </div>
+                          )}
                       </div>
                     </div>
                       ))}
@@ -1408,7 +1629,6 @@ export default function ObjectDetail(){
               margin: '0 auto 16px',
               fontSize: '24px'
             }}>
-              📋
             </div>
             <h4 style={{
               margin: '0 0 8px 0',
@@ -1427,6 +1647,139 @@ export default function ObjectDetail(){
           </div>
         )}
       </div>
+
+      {/* Блок запросов на изменение (только для ССК) */}
+      {user?.role === 'ssk' && (
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{
+            margin: '0 0 20px 0',
+            fontSize: '20px',
+            fontWeight: '600',
+            color: 'var(--text)'
+          }}>
+            Запросы на изменение плана
+          </h3>
+          
+          {requestsLoading ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px 20px',
+              color: 'var(--muted)'
+            }}>
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '2px solid var(--border)',
+                borderTop: '2px solid var(--brand)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                marginRight: '12px'
+              }} />
+              Загрузка запросов...
+            </div>
+          ) : changeRequests.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '20px',
+              color: 'var(--muted)',
+              background: 'var(--bg-light)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)'
+            }}>
+              <p style={{ margin: 0, fontSize: '14px' }}>
+                Запросы на изменение отсутствуют
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {changeRequests.map((request) => (
+                <div
+                  key={request.id}
+                  style={{
+                    background: 'var(--bg-light)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-secondary)'
+                    e.currentTarget.style.borderColor = 'var(--brand)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-light)'
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                  }}
+                  onClick={() => openRequestDetailModal(request)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                        Запрос #{request.id}
+                      </h4>
+                      <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--muted)' }}>
+                        От: {request.requested_by_name}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+                        {formatDate(request.created_at)}
+                      </p>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        background: getStatusColor(request.status) + '20',
+                        color: getStatusColor(request.status),
+                        border: `1px solid ${getStatusColor(request.status)}40`
+                      }}>
+                        {getStatusText(request.status)}
+                      </span>
+                      
+                      {request.status === 'pending' && (
+                        <button
+                          className="btn small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openDecisionModal(request)
+                          }}
+                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                        >
+                          Решить
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <p style={{ 
+                    margin: '8px 0 0 0', 
+                    fontSize: '14px', 
+                    color: 'var(--text)',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {request.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Блок нарушений */}
       <div style={{
@@ -1533,7 +1886,7 @@ export default function ObjectDetail(){
                           alignItems: 'center',
                           gap: '3px'
                         }}>
-                          👁️ Ваша проверка
+                          Ваша проверка
                         </div>
                       )}
                       {cannotReview && (
@@ -1582,7 +1935,7 @@ export default function ObjectDetail(){
                       color: 'var(--muted)',
                       alignItems: 'center'
                     }}>
-                      <span>📅 {new Date(violation.created_at).toLocaleDateString('ru-RU')}</span>
+                      <span>{new Date(violation.created_at).toLocaleDateString('ru-RU')}</span>
                     </div>
                   </div>
                 </div>
@@ -1928,6 +2281,322 @@ export default function ObjectDetail(){
           }
         }}
       />
+
+      {/* Модальное окно просмотра деталей запроса на изменение */}
+      {requestDetailModalOpen && selectedRequest && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '1200px',
+            width: '95%',
+            maxHeight: '95vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>
+                Детали запроса #{selectedRequest.id}
+              </h2>
+              <button
+                className="btn ghost"
+                onClick={() => setRequestDetailModalOpen(false)}
+                style={{ padding: '8px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Информация о запросе */}
+              <div style={{
+                background: 'var(--bg-light)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '16px'
+              }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                  Информация о запросе
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
+                  <div>
+                    <span style={{ color: 'var(--muted)' }}>От:</span>
+                    <span style={{ marginLeft: '8px', color: 'var(--text)' }}>{selectedRequest.requested_by_name}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--muted)' }}>Статус:</span>
+                    <span style={{ 
+                      marginLeft: '8px', 
+                      color: getStatusColor(selectedRequest.status),
+                      fontWeight: '500'
+                    }}>
+                      {getStatusText(selectedRequest.status)}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--muted)' }}>Создан:</span>
+                    <span style={{ marginLeft: '8px', color: 'var(--text)' }}>{formatDate(selectedRequest.created_at)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--muted)' }}>Изменен:</span>
+                    <span style={{ marginLeft: '8px', color: 'var(--text)' }}>{formatDate(selectedRequest.modified_at)}</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: '12px' }}>
+                  <span style={{ color: 'var(--muted)' }}>Комментарий:</span>
+                  <p style={{ margin: '4px 0 0 0', color: 'var(--text)' }}>{selectedRequest.comment}</p>
+                </div>
+              </div>
+
+              {/* Сравнение изменений */}
+              <div style={{
+                background: 'var(--bg-light)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '16px'
+              }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                  ИЗМЕНЕНИЯ
+                </h3>
+                
+                {(() => {
+                  const changes = getChangedItems(selectedRequest.old_items_data, selectedRequest.new_items_data)
+                  
+                  if (changes.added.length === 0 && changes.modified.length === 0 && changes.removed.length === 0) {
+                    return (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '20px',
+                        color: 'var(--muted)',
+                        background: 'var(--panel)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)'
+                      }}>
+                        <p style={{ margin: 0, fontSize: '14px' }}>
+                          Изменений не обнаружено
+                        </p>
+                      </div>
+                    )
+                  }
+                  
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {/* Добавленные элементы */}
+                      {changes.added.length > 0 && (
+                        <div>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '500', color: '#10b981' }}>
+                            ➕ Добавлено ({changes.added.length}):
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {changes.added.map((item, idx) => (
+                              <div key={idx} style={{
+                                background: '#f0fdf4',
+                                border: '1px solid #bbf7d0',
+                                borderRadius: '6px',
+                                padding: '12px',
+                                fontSize: '13px'
+                              }}>
+                                <div style={{ fontWeight: '500', color: 'var(--text)', marginBottom: '4px' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ color: 'var(--muted)' }}>
+                                  {item.quantity} {item.unit} • {item.start_date} - {item.end_date}
+                                </div>
+                                {item.sub_areas && item.sub_areas.length > 0 && (
+                                  <div style={{ marginTop: '4px', color: 'var(--muted)' }}>
+                                    Участки: {item.sub_areas.map(sa => sa.name).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Измененные элементы */}
+                      {changes.modified.length > 0 && (
+                        <div>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '500', color: '#f59e0b' }}>
+                            ✏️ Изменено ({changes.modified.length}):
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {changes.modified.map((change, idx) => (
+                              <div key={idx} style={{
+                                background: 'var(--panel)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '6px',
+                                padding: '12px',
+                                fontSize: '13px'
+                              }}>
+                                <div style={{ fontWeight: '500', color: 'var(--text)', marginBottom: '8px' }}>
+                                  {change.old.name}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {change.changedFields.map((fieldChange, fieldIdx) => (
+                                    <div key={fieldIdx} style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ color: '#dc2626', marginBottom: '2px', fontSize: '11px', fontWeight: '500' }}>
+                                          {fieldChange.field === 'name' ? 'Название' :
+                                           fieldChange.field === 'quantity' ? 'Количество' :
+                                           fieldChange.field === 'unit' ? 'Единица' :
+                                           fieldChange.field === 'start_date' ? 'Дата начала' :
+                                           fieldChange.field === 'end_date' ? 'Дата окончания' :
+                                           fieldChange.field === 'sub_areas' ? 'Подполигоны' : fieldChange.field}:
+                                        </div>
+                                        <div style={{ color: 'var(--muted)', fontSize: '11px' }}>
+                                          {fieldChange.field === 'sub_areas' ? 
+                                            (fieldChange.old.length > 0 ? fieldChange.old.map(sa => sa.name).join(', ') : 'Нет') :
+                                            fieldChange.old}
+                                        </div>
+                                      </div>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ color: '#16a34a', marginBottom: '2px', fontSize: '11px', fontWeight: '500' }}>
+                                          Стало:
+                                        </div>
+                                        <div style={{ color: 'var(--muted)', fontSize: '11px' }}>
+                                          {fieldChange.field === 'sub_areas' ? 
+                                            (fieldChange.new.length > 0 ? fieldChange.new.map(sa => sa.name).join(', ') : 'Нет') :
+                                            fieldChange.new}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Удаленные элементы */}
+                      {changes.removed.length > 0 && (
+                        <div>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '500', color: '#ef4444' }}>
+                            ➖ Удалено ({changes.removed.length}):
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {changes.removed.map((item, idx) => (
+                              <div key={idx} style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                padding: '12px',
+                                fontSize: '13px'
+                              }}>
+                                <div style={{ fontWeight: '500', color: 'var(--text)', marginBottom: '4px' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ color: 'var(--muted)' }}>
+                                  {item.quantity} {item.unit} • {item.start_date} - {item.end_date}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {selectedRequest.status === 'pending' && (
+              <div style={{ marginTop: '20px', padding: '16px', background: 'var(--bg-light)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '500', color: 'var(--text)' }}>
+                  Принятие решения:
+                </h4>
+                <textarea
+                  className="input"
+                  placeholder="Укажите комментарий к решению..."
+                  value={decisionComment}
+                  onChange={(e) => setDecisionComment(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', resize: 'vertical', marginBottom: '12px' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button
+                    onClick={() => handleDecision('reject')}
+                    disabled={processing || !decisionComment.trim()}
+                    style={{
+                      padding: '12px 24px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: processing || !decisionComment.trim() ? 'not-allowed' : 'pointer',
+                      background: processing || !decisionComment.trim() ? '#6b7280' : '#ef4444',
+                      color: 'white',
+                      transition: 'all 0.2s ease',
+                      opacity: processing || !decisionComment.trim() ? 0.6 : 1,
+                      minWidth: '120px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!processing && decisionComment.trim()) {
+                        e.target.style.background = '#dc2626'
+                        e.target.style.transform = 'translateY(-1px)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!processing && decisionComment.trim()) {
+                        e.target.style.background = '#ef4444'
+                        e.target.style.transform = 'translateY(0)'
+                      }
+                    }}
+                  >
+                    {processing ? 'Обработка...' : 'Отклонить'}
+                  </button>
+                  <button
+                    onClick={() => handleDecision('approve')}
+                    disabled={processing || !decisionComment.trim()}
+                    style={{
+                      padding: '12px 24px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: processing || !decisionComment.trim() ? 'not-allowed' : 'pointer',
+                      background: processing || !decisionComment.trim() ? '#6b7280' : '#10b981',
+                      color: 'white',
+                      transition: 'all 0.2s ease',
+                      opacity: processing || !decisionComment.trim() ? 0.6 : 1,
+                      minWidth: '120px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!processing && decisionComment.trim()) {
+                        e.target.style.background = '#059669'
+                        e.target.style.transform = 'translateY(-1px)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!processing && decisionComment.trim()) {
+                        e.target.style.background = '#10b981'
+                        e.target.style.transform = 'translateY(0)'
+                      }
+                    }}
+                  >
+                    {processing ? 'Обработка...' : 'Одобрить'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+
     </div>
   )
 }

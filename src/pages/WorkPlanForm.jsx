@@ -1,19 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { createWorkPlan, getObject } from '../api/api.js'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { createWorkPlan, getObject, getWorkPlan } from '../api/api.js'
+import { createWorkPlanChangeRequest } from '../api/workPlans.js'
 import SubAreaColumn from '../components/SubAreaColumn.jsx'
+import { useAuth } from '../auth/AuthContext.jsx'
+import NotificationToast from '../components/NotificationToast.jsx'
+import { useNotification } from '../hooks/useNotification.js'
 
 export default function WorkPlanForm(){
   const { objectId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { user } = useAuth()
+  const { showSuccess, showError } = useNotification()
+  
+  const isEditMode = searchParams.get('edit') === 'true'
+  const planId = searchParams.get('planId')
+  
   const [object, setObject] = useState(null)
   const [title, setTitle] = useState('')
+  const [comment, setComment] = useState('')
   const [rows, setRows] = useState([
     { id: 1, name:'', quantity:0, unit:'усл.', start_date:'', end_date:'', sub_areas: [] }
   ])
   const [allSubAreas, setAllSubAreas] = useState([])
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   const units = ['усл.', 'шт', 'м²', 'м³', 'м', 'кг', 'т', 'л']
   
@@ -44,6 +58,38 @@ export default function WorkPlanForm(){
     }
   }, [objectId])
 
+  // Загрузка данных в режиме редактирования
+  useEffect(() => {
+    if (isEditMode && planId && !dataLoaded) {
+      setLoading(true)
+      getWorkPlan(planId).then(plan => {
+        setTitle(plan.title || '')
+        if (plan.work_items && plan.work_items.length > 0) {
+          const formattedRows = plan.work_items.map((item, idx) => ({
+            id: item.id || Date.now() + idx,
+            name: item.name || '',
+            quantity: item.quantity || 0,
+            unit: item.unit || 'усл.',
+            start_date: item.start_date || '',
+            end_date: item.end_date || '',
+            sub_areas: item.sub_areas || []
+          }))
+          setRows(formattedRows)
+          
+          // Собираем все подполигоны
+          const allSubAreas = plan.work_items.flatMap(item => item.sub_areas || [])
+          setAllSubAreas(allSubAreas)
+        }
+        setDataLoaded(true)
+      }).catch(e => {
+        console.error('Ошибка загрузки плана для редактирования:', e)
+        showError('Ошибка загрузки плана: ' + (e?.message || ''))
+      }).finally(() => {
+        setLoading(false)
+      })
+    }
+  }, [isEditMode, planId, dataLoaded])
+
   const isValid = useMemo(()=>{
     if (!object) return false
     if (!rows.length) return false
@@ -56,10 +102,15 @@ export default function WorkPlanForm(){
   const submit = async (e) => {
     e.preventDefault()
     if (!isValid) return
+    if (isEditMode && !comment.trim()) {
+      showError('Комментарий обязателен для редактирования')
+      return
+    }
     setSaving(true)
     try{
       // Подготавливаем данные в новом формате API
       const items = rows.map(row => ({
+        id: row.id, // Включаем ID для существующих элементов
         name: row.name,
         quantity: row.quantity,
         unit: row.unit,
@@ -75,12 +126,24 @@ export default function WorkPlanForm(){
         }))
       }))
       
-      const resUuid = await createWorkPlan({ 
-        object_id: Number(objectId), 
-        items: items, 
-        title: title||undefined 
-      })
-      setResult(resUuid)
+      if (isEditMode) {
+        // Режим редактирования - используем change-request для обеих ролей
+        await createWorkPlanChangeRequest(planId, comment, items)
+        if (user?.role === 'ssk') {
+          showSuccess('План работ обновлен')
+        } else {
+          showSuccess('Запрос на изменение отправлен')
+        }
+      } else {
+        // Режим создания
+        const resUuid = await createWorkPlan({ 
+          object_id: Number(objectId), 
+          items: items, 
+          title: title||undefined 
+        })
+        setResult(resUuid)
+      }
+      
       // Перенаправляем обратно на страницу объекта
       setTimeout(() => navigate(`/objects/${objectId}`), 2000)
     }catch(err){
@@ -88,6 +151,33 @@ export default function WorkPlanForm(){
     }finally{
       setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid var(--border)',
+            borderTop: '3px solid var(--brand)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }} />
+          <p style={{ margin: 0, color: 'var(--muted)' }}>
+            Загрузка плана для редактирования...
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -110,7 +200,7 @@ export default function WorkPlanForm(){
             color: 'var(--text)',
             lineHeight: '1.2'
           }}>
-            Электронная спецификация и перечень работ
+            {isEditMode ? 'Редактирование плана работ' : 'Электронная спецификация и перечень работ'}
           </h1>
           <p style={{
             margin: '4px 0 0 0',
@@ -118,7 +208,10 @@ export default function WorkPlanForm(){
             color: 'var(--muted)',
             lineHeight: '1.4'
           }}>
-            Создание детального плана работ для объекта
+            {isEditMode 
+              ? (user?.role === 'ssk' ? 'Редактирование детального плана работ' : 'Запрос на изменение плана работ')
+              : 'Создание детального плана работ для объекта'
+            }
           </p>
         </div>
 
@@ -191,6 +284,35 @@ export default function WorkPlanForm(){
                 placeholder="Опционально" 
               />
             </div>
+            
+            {/* Поле комментария для режима редактирования */}
+            {isEditMode && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+                <label style={{
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: 'var(--text)',
+                  minWidth: '120px'
+                }}>
+                  Комментарий:
+                </label>
+                <input 
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: 'var(--panel)',
+                    color: 'var(--text)'
+                  }}
+                  value={comment} 
+                  onChange={e=>setComment(e.target.value)} 
+                  placeholder={user?.role === 'ssk' ? 'Описание изменений...' : 'Обоснование изменений...'} 
+                  required
+                />
+              </div>
+            )}
           </div>
 
           {/* Таблица работ */}
@@ -427,7 +549,13 @@ export default function WorkPlanForm(){
               }
             }}
           >
-            {saving ? 'Создание...' : 'Создать план работ'}
+            {saving 
+              ? (isEditMode ? 'Сохранение...' : 'Создание...') 
+              : (isEditMode 
+                  ? (user?.role === 'ssk' ? 'Сохранить изменения' : 'Отправить запрос')
+                  : 'Создать план работ'
+                )
+            }
           </button>
         </div>
       </form>
