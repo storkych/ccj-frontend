@@ -516,3 +516,19 @@ export async function browseForemanFiles(foremanId, path = '') {
   console.log(`[s3 ←]`, ts, 'GET', url, res.status, data)
   return data
 }
+
+// Получение детальной информации о работе
+export async function getWorkItemDetails(id) {
+  const ts = new Date().toISOString()
+  const tokens = getTokens()
+  const headers = {}
+  if (tokens.access) headers['Authorization'] = `Bearer ${tokens.access}`
+  
+  try{ console.log(`[api →]`, ts, 'GET', `/work-items/${id}`) }catch{ console.log(`[api →]`, ts, 'GET', `/work-items/${id}`) }
+  const res = await http(`/work-items/${id}`, {
+    method: 'GET',
+    headers
+  })
+  console.log(`[api ←]`, ts, 'GET', `/work-items/${id}`, res.status, res)
+  return res
+}

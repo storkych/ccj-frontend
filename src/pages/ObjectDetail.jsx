@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO, getViolations } from '../api/api.js'
+import { getObject, getForemen, patchObject, requestActivation, getWorkPlans, createArea, getWorkPlan, updateWorkItemStatus, ikoActivationCheck, createViolation, createViolationWithPhotos, completeObjectBySSK, completeObjectByIKO, getViolations, getWorkItemDetails } from '../api/api.js'
 import { getChangeRequests, makeChangeRequestDecision } from '../api/workPlans.js'
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -67,6 +67,13 @@ export default function ObjectDetail(){
   const [decisionComment, setDecisionComment] = useState('')
   const [editedItems, setEditedItems] = useState([])
   const [processing, setProcessing] = useState(false)
+  
+  // Состояние для детального просмотра работы
+  const [workItemDetailModalOpen, setWorkItemDetailModalOpen] = useState(false)
+  const [selectedWorkItem, setSelectedWorkItem] = useState(null)
+  const [workItemDetails, setWorkItemDetails] = useState(null)
+  const [workItemDetailsLoading, setWorkItemDetailsLoading] = useState(false)
+  const [expandedDeliveries, setExpandedDeliveries] = useState(new Set())
 
   // Инициализация видимых подполигонов
   useEffect(() => {
@@ -317,6 +324,37 @@ export default function ObjectDetail(){
   const openRequestDetailModal = (request) => {
     setSelectedRequest(request)
     setRequestDetailModalOpen(true)
+  }
+
+  // Открытие модалки детального просмотра работы
+  const openWorkItemDetailModal = async (workItem) => {
+    setSelectedWorkItem(workItem)
+    setWorkItemDetailModalOpen(true)
+    setWorkItemDetailsLoading(true)
+    setExpandedDeliveries(new Set()) // Сбрасываем раскрытые поставки
+    
+    try {
+      const details = await getWorkItemDetails(workItem.id)
+      setWorkItemDetails(details)
+    } catch (error) {
+      console.error('Ошибка загрузки деталей работы:', error)
+      showError('Ошибка загрузки деталей работы: ' + (error?.message || ''))
+    } finally {
+      setWorkItemDetailsLoading(false)
+    }
+  }
+
+  // Переключение раскрытия поставки
+  const toggleDeliveryExpansion = (deliveryId) => {
+    setExpandedDeliveries(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(deliveryId)) {
+        newSet.delete(deliveryId)
+      } else {
+        newSet.add(deliveryId)
+      }
+      return newSet
+    })
   }
 
   // Функция для сравнения полей и определения изменений
@@ -1238,16 +1276,19 @@ export default function ObjectDetail(){
                   </div>
                   {/* Строки таблицы */}
                       {workPlanDetails.work_items.map((item, idx) => (
-                    <div key={item.id || idx} style={{
-                      padding: '16px 20px',
-                      borderBottom: idx < workPlanDetails.work_items.length - 1 ? '1px solid var(--border)' : 'none',
-                      background: idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)',
-                          transition: 'background-color 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                      e.target.style.background = 'var(--bg-secondary)'
-                        }}
-                        onMouseLeave={(e) => {
+                    <div key={item.id || idx} 
+                      onClick={() => openWorkItemDetailModal(item)}
+                      style={{
+                        padding: '16px 20px',
+                        borderBottom: idx < workPlanDetails.work_items.length - 1 ? '1px solid var(--border)' : 'none',
+                        background: idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)',
+                        transition: 'background-color 0.2s ease',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = 'var(--bg-secondary)'
+                      }}
+                      onMouseLeave={(e) => {
                       e.target.style.background = idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)'
                     }}>
                       <div style={{
@@ -1355,7 +1396,8 @@ export default function ObjectDetail(){
                                   <button 
                                     className="btn small" 
                                     disabled={updatingItems.has(item.id)}
-                                    onClick={async () => {
+                                    onClick={async (e) => {
+                                      e.stopPropagation() // Предотвращаем всплытие события
                                       setUpdatingItems(prev => new Set(prev).add(item.id))
                                       try {
                                         await updateWorkItemStatus(item.id, 'in_progress')
@@ -1410,7 +1452,8 @@ export default function ObjectDetail(){
                                   <button 
                                     className="btn small" 
                                     disabled={updatingItems.has(item.id)}
-                                    onClick={async () => {
+                                    onClick={async (e) => {
+                                      e.stopPropagation() // Предотвращаем всплытие события
                                       setUpdatingItems(prev => new Set(prev).add(item.id))
                                       try {
                                         await updateWorkItemStatus(item.id, 'completed_foreman')
@@ -1466,7 +1509,8 @@ export default function ObjectDetail(){
                                     <button 
                                       className="btn small" 
                                       disabled={updatingItems.has(item.id)}
-                                      onClick={async () => {
+                                      onClick={async (e) => {
+                                        e.stopPropagation() // Предотвращаем всплытие события
                                         setUpdatingItems(prev => new Set(prev).add(item.id))
                                         try {
                                           await updateWorkItemStatus(item.id, 'in_progress')
@@ -1517,7 +1561,8 @@ export default function ObjectDetail(){
                                     <button 
                                       className="btn small" 
                                       disabled={updatingItems.has(item.id)}
-                                      onClick={async () => {
+                                      onClick={async (e) => {
+                                        e.stopPropagation() // Предотвращаем всплытие события
                                         setUpdatingItems(prev => new Set(prev).add(item.id))
                                         try {
                                           await updateWorkItemStatus(item.id, 'completed_ssk')
@@ -2596,6 +2641,307 @@ export default function ObjectDetail(){
         </div>
       )}
 
+      {/* Модалка детального просмотра работы */}
+      {workItemDetailModalOpen && selectedWorkItem && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '1000px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: 'var(--text)' }}>
+                Детали работы: {selectedWorkItem.name}
+              </h2>
+              <button
+                className="btn ghost"
+                onClick={() => setWorkItemDetailModalOpen(false)}
+                style={{ padding: '8px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {workItemDetailsLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ 
+                  display: 'inline-block',
+                  width: '32px',
+                  height: '32px',
+                  border: '3px solid var(--border)',
+                  borderTop: '3px solid var(--brand)',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+                <p style={{ margin: '16px 0 0 0', color: 'var(--muted)' }}>Загрузка деталей...</p>
+              </div>
+            ) : workItemDetails ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Основная информация о работе */}
+                <div style={{
+                  background: 'var(--bg-light)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '16px'
+                }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                    Основная информация
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Название:</span>
+                      <div style={{ fontWeight: '500', color: 'var(--text)' }}>{workItemDetails.name}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Количество:</span>
+                      <div style={{ fontWeight: '500', color: 'var(--text)' }}>{workItemDetails.quantity} {workItemDetails.unit}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Дата начала:</span>
+                      <div style={{ fontWeight: '500', color: 'var(--text)' }}>{workItemDetails.start_date}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Дата окончания:</span>
+                      <div style={{ fontWeight: '500', color: 'var(--text)' }}>{workItemDetails.end_date}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Статус:</span>
+                      <div style={{ fontWeight: '500', color: 'var(--text)' }}>
+                        {workItemDetails.status === 'planned' ? 'Запланировано' :
+                         workItemDetails.status === 'in_progress' ? 'В работе' :
+                         workItemDetails.status === 'completed_foreman' ? 'Завершено прорабом' :
+                         workItemDetails.status === 'completed_ssk' ? 'Выполнено' : workItemDetails.status}
+                      </div>
+                    </div>
+                    {workItemDetails.document_url && (
+                      <div>
+                        <span style={{ color: 'var(--muted)' }}>Документ:</span>
+                        <div>
+                          <a 
+                            href={workItemDetails.document_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--brand)', textDecoration: 'none' }}
+                          >
+                            Открыть документ
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Подполигоны */}
+                {workItemDetails.sub_areas && workItemDetails.sub_areas.length > 0 && (
+                  <div style={{
+                    background: 'var(--bg-light)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '16px'
+                  }}>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                      Подполигоны ({workItemDetails.sub_areas.length})
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {workItemDetails.sub_areas.map((subArea, idx) => (
+                        <div key={idx} style={{
+                          background: 'var(--panel)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px'
+                        }}>
+                          <div style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            background: subArea.color || '#6366f1'
+                          }}></div>
+                          <div style={{ fontWeight: '500', color: 'var(--text)' }}>{subArea.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Поставки */}
+                {workItemDetails.deliveries && workItemDetails.deliveries.length > 0 && (
+                  <div style={{
+                    background: 'var(--bg-light)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    padding: '16px'
+                  }}>
+                    <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: 'var(--text)' }}>
+                      Поставки ({workItemDetails.deliveries.length})
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {workItemDetails.deliveries.map((delivery, idx) => (
+                        <div key={idx} style={{
+                          background: 'var(--panel)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '16px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div>
+                              <div style={{ fontWeight: '500', color: 'var(--text)', marginBottom: '4px' }}>
+                                Поставка #{delivery.id}
+                              </div>
+                              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                                Планируемая дата: {delivery.planned_date}
+                              </div>
+                            </div>
+                            <div style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              background: delivery.status === 'received' ? '#dcfce7' : '#fef3c7',
+                              color: delivery.status === 'received' ? '#166534' : '#92400e'
+                            }}>
+                              {delivery.status === 'received' ? 'Получено' : 'Запланировано'}
+                            </div>
+                          </div>
+                          
+                          {delivery.notes && (
+                            <div style={{ marginBottom: '8px', fontSize: '13px', color: 'var(--muted)' }}>
+                              {delivery.notes}
+                            </div>
+                          )}
+
+                          {/* Материалы - раскрывающийся список */}
+                          {delivery.materials && delivery.materials.length > 0 && (
+                            <div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleDeliveryExpansion(delivery.id)
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: '0',
+                                  margin: '0 0 6px 0',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  color: 'var(--text)',
+                                  width: '100%',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <span style={{
+                                  transform: expandedDeliveries.has(delivery.id) ? 'rotate(90deg)' : 'rotate(0deg)',
+                                  transition: 'transform 0.2s ease',
+                                  fontSize: '12px'
+                                }}>
+                                  ▶
+                                </span>
+                                Материалы ({delivery.materials.length}):
+                              </button>
+                              
+                              {expandedDeliveries.has(delivery.id) && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: '18px' }}>
+                                  {delivery.materials.map((material, matIdx) => (
+                                    <div key={matIdx} style={{
+                                      background: 'var(--bg-light)',
+                                      border: '1px solid var(--border)',
+                                      borderRadius: '4px',
+                                      padding: '8px',
+                                      fontSize: '12px'
+                                    }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ fontWeight: '500', color: 'var(--text)' }}>
+                                          {material.material_name}
+                                        </div>
+                                        <div style={{
+                                          padding: '2px 6px',
+                                          borderRadius: '3px',
+                                          fontSize: '10px',
+                                          fontWeight: '500',
+                                          background: material.is_confirmed ? '#dcfce7' : '#fef3c7',
+                                          color: material.is_confirmed ? '#166534' : '#92400e'
+                                        }}>
+                                          {material.is_confirmed ? 'Подтверждено' : 'Ожидает'}
+                                        </div>
+                                      </div>
+                                      <div style={{ color: 'var(--muted)', marginTop: '2px' }}>
+                                        {material.material_quantity}
+                                        {material.material_size && ` • ${material.material_size}`}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Фото накладных */}
+                          {delivery.invoice_photos_folder_url && delivery.invoice_photos_folder_url.length > 0 && (
+                            <div style={{ marginTop: '8px' }}>
+                              <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text)', marginBottom: '6px' }}>
+                                Фото накладных:
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {delivery.invoice_photos_folder_url.map((photoUrl, photoIdx) => (
+                                  <a
+                                    key={photoIdx}
+                                    href={photoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '4px 8px',
+                                      background: 'var(--brand)',
+                                      color: 'white',
+                                      textDecoration: 'none',
+                                      borderRadius: '4px',
+                                      fontSize: '11px'
+                                    }}
+                                  >
+                                    Фото {photoIdx + 1}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                <p>Ошибка загрузки деталей работы</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   )
