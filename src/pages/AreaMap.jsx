@@ -12,6 +12,7 @@ export default function AreaMap({
   onPolygonCreated, // (geojsonGeometry) => void
   readOnly = false,
   height = 400,
+  disableScrollZoom = false, // Отключить зум колесиком
 }){
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -20,7 +21,7 @@ export default function AreaMap({
     if (mapRef.current) return
     const map = L.map(containerRef.current, {
       attributionControl: false,
-      scrollWheelZoom: false
+      scrollWheelZoom: !disableScrollZoom
     }).setView(center, zoom)
     mapRef.current = { map }
 

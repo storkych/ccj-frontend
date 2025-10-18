@@ -765,6 +765,7 @@ export default function ObjectDetail(){
           }}>
             <AreaMap
               readOnly
+              disableScrollZoom={true}
               polygons={(() => {
                 const mainPolygons = (obj.areas||[]).map(a=>({ geometry: a.geometry, name: a.name, color: '#3b82f6' }))
                 const subPolygons = (workPlanDetails?.work_items?.flatMap(item => 
@@ -1005,7 +1006,7 @@ export default function ObjectDetail(){
                       }}>
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: user?.role === 'ssk' ? '2fr 100px 100px 150px 150px 200px 120px' : '2fr 100px 100px 150px 150px 200px',
+                      gridTemplateColumns: (user?.role === 'ssk' || user?.role === 'foreman') ? '2fr 100px 100px 150px 150px 200px 280px' : '2fr 100px 100px 150px 150px 200px',
                       gap: '12px',
                       alignItems: 'center',
                           fontWeight: '600',
@@ -1015,12 +1016,12 @@ export default function ObjectDetail(){
                       letterSpacing: '0.5px'
                     }}>
                       <div>Название работы</div>
-                      <div>Количество</div>
+                      <div>Кол-во</div>
                       <div>Единица</div>
                       <div>Период</div>
                       <div>Статус</div>
                       <div>Подполигоны</div>
-                        {user?.role === 'ssk' && (
+                        {(user?.role === 'ssk' || user?.role === 'foreman') && (
                         <div>Действия</div>
                       )}
                     </div>
@@ -1041,7 +1042,7 @@ export default function ObjectDetail(){
                     }}>
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: user?.role === 'ssk' ? '2fr 100px 100px 150px 150px 200px 120px' : '2fr 100px 100px 150px 150px 200px',
+                        gridTemplateColumns: (user?.role === 'ssk' || user?.role === 'foreman') ? '2fr 100px 100px 150px 150px 200px 280px' : '2fr 100px 100px 150px 150px 200px',
                         gap: '12px',
                         alignItems: 'center'
                       }}>
@@ -1077,20 +1078,23 @@ export default function ObjectDetail(){
                         </div>
                         <div>
                             <span style={{
-                              background: item.status === 'planned' ? '#fef3c7' : 
+                              background: (item.status === 'pending' || item.status === 'planned') ? '#fef3c7' : 
                                          item.status === 'in_progress' ? '#dbeafe' : 
-                                         item.status === 'done' ? '#d1fae5' : 'var(--bg-secondary)',
-                              color: item.status === 'planned' ? '#92400e' : 
+                                         item.status === 'completed_foreman' ? '#fef3c7' : 
+                                         item.status === 'completed_ssk' ? '#d1fae5' : 'var(--bg-secondary)',
+                              color: (item.status === 'pending' || item.status === 'planned') ? '#92400e' : 
                                     item.status === 'in_progress' ? '#1e40af' : 
-                                    item.status === 'done' ? '#065f46' : 'var(--muted)',
+                                    item.status === 'completed_foreman' ? '#92400e' : 
+                                    item.status === 'completed_ssk' ? '#065f46' : 'var(--muted)',
                               padding: '4px 8px',
                               borderRadius: '6px',
                               fontSize: '12px',
                               fontWeight: '500'
                             }}>
-                              {item.status === 'planned' ? 'Запланировано' : 
+                              {(item.status === 'pending' || item.status === 'planned') ? 'Запланировано' : 
                                item.status === 'in_progress' ? 'В работе' : 
-                               item.status === 'done' ? 'Выполнено' : item.status}
+                               item.status === 'completed_foreman' ? 'На проверке' : 
+                               item.status === 'completed_ssk' ? 'Выполнено' : item.status}
                             </span>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-start' }}>
@@ -1133,10 +1137,11 @@ export default function ObjectDetail(){
                               <span style={{color: 'var(--muted)', fontSize: '13px'}}>—</span>
                             )}
                         </div>
-                          {user?.role === 'ssk' && (
+                          {(user?.role === 'ssk' || user?.role === 'foreman') && (
                           <div>
                               <div style={{display: 'flex', gap: '6px'}}>
-                                {item.status !== 'in_progress' && item.status !== 'done' && (
+                                {/* Начать работу - могут и прораб и ССК */}
+                                {(item.status === 'pending' || item.status === 'planned') && (
                                   <button 
                                     className="btn small" 
                                     disabled={updatingItems.has(item.id)}
@@ -1157,43 +1162,48 @@ export default function ObjectDetail(){
                                       }
                                     }}
                                     style={{
-                                    padding: '8px 16px',
-                                    fontSize: '13px',
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#ff8a00',
                                       color: 'white',
                                       border: 'none',
-                                    borderRadius: '8px',
+                                    borderRadius: '6px',
                                       cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
                                     fontWeight: '600',
                                       transition: 'all 0.2s ease',
                                       opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                    minWidth: '80px'
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    minWidth: '70px',
+                                    whiteSpace: 'nowrap'
                                     }}
                                     onMouseEnter={(e) => {
                                       if (!updatingItems.has(item.id)) {
                                         e.target.style.background = '#e67e00'
                                         e.target.style.transform = 'translateY(-1px)'
+                                        e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
                                       }
                                     }}
                                     onMouseLeave={(e) => {
                                       if (!updatingItems.has(item.id)) {
                                         e.target.style.background = '#ff8a00'
                                         e.target.style.transform = 'translateY(0)'
+                                        e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
                                       }
                                     }}
                                   >
                                     {updatingItems.has(item.id) ? '...' : 'Начать'}
                                   </button>
                                 )}
-                                {item.status === 'in_progress' && (
+
+                                {/* Завершить работу - только прораб */}
+                                {item.status === 'in_progress' && user?.role === 'foreman' && (
                                   <button 
                                     className="btn small" 
                                     disabled={updatingItems.has(item.id)}
                                     onClick={async () => {
                                       setUpdatingItems(prev => new Set(prev).add(item.id))
                                       try {
-                                        await updateWorkItemStatus(item.id, 'done')
+                                        await updateWorkItemStatus(item.id, 'completed_foreman')
                                         const updated = await getWorkPlan(workPlanDetails.id)
                                         setWorkPlanDetails(updated)
                                       } catch (e) {
@@ -1207,49 +1217,155 @@ export default function ObjectDetail(){
                                       }
                                     }}
                                     style={{
-                                    padding: '8px 16px',
-                                    fontSize: '13px',
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
                                       background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
                                       color: 'white',
                                       border: 'none',
-                                    borderRadius: '8px',
+                                    borderRadius: '6px',
                                       cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
                                     fontWeight: '600',
                                       transition: 'all 0.2s ease',
                                       opacity: updatingItems.has(item.id) ? 0.7 : 1,
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                    minWidth: '80px'
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    minWidth: '70px',
+                                    whiteSpace: 'nowrap'
                                     }}
                                     onMouseEnter={(e) => {
                                       if (!updatingItems.has(item.id)) {
                                         e.target.style.background = '#16a34a'
                                         e.target.style.transform = 'translateY(-1px)'
+                                        e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
                                       }
                                     }}
                                     onMouseLeave={(e) => {
                                       if (!updatingItems.has(item.id)) {
                                         e.target.style.background = '#22c55e'
                                         e.target.style.transform = 'translateY(0)'
+                                        e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
                                       }
                                     }}
                                   >
                                     {updatingItems.has(item.id) ? '...' : 'Завершить'}
                                   </button>
                                 )}
-                                {item.status === 'done' && (
+
+                                {/* Действия ССК для проверки */}
+                                {item.status === 'completed_foreman' && user?.role === 'ssk' && (
+                                  <>
+                                    <button 
+                                      className="btn small" 
+                                      disabled={updatingItems.has(item.id)}
+                                      onClick={async () => {
+                                        setUpdatingItems(prev => new Set(prev).add(item.id))
+                                        try {
+                                          await updateWorkItemStatus(item.id, 'in_progress')
+                                          const updated = await getWorkPlan(workPlanDetails.id)
+                                          setWorkPlanDetails(updated)
+                                        } catch (e) {
+                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        } finally {
+                                          setUpdatingItems(prev => {
+                                            const next = new Set(prev)
+                                            next.delete(item.id)
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                      style={{
+                                      padding: '6px 10px',
+                                      fontSize: '11px',
+                                        background: updatingItems.has(item.id) ? '#6b7280' : '#ef4444',
+                                        color: 'white',
+                                        border: 'none',
+                                      borderRadius: '6px',
+                                        cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                      fontWeight: '600',
+                                        transition: 'all 0.2s ease',
+                                        opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                      minWidth: '60px',
+                                      whiteSpace: 'nowrap'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (!updatingItems.has(item.id)) {
+                                          e.target.style.background = '#dc2626'
+                                          e.target.style.transform = 'translateY(-1px)'
+                                          e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!updatingItems.has(item.id)) {
+                                          e.target.style.background = '#ef4444'
+                                          e.target.style.transform = 'translateY(0)'
+                                          e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
+                                        }
+                                      }}
+                                    >
+                                      {updatingItems.has(item.id) ? '...' : 'На доработку'}
+                                    </button>
+                                    <button 
+                                      className="btn small" 
+                                      disabled={updatingItems.has(item.id)}
+                                      onClick={async () => {
+                                        setUpdatingItems(prev => new Set(prev).add(item.id))
+                                        try {
+                                          await updateWorkItemStatus(item.id, 'completed_ssk')
+                                          const updated = await getWorkPlan(workPlanDetails.id)
+                                          setWorkPlanDetails(updated)
+                                        } catch (e) {
+                                        showError('Ошибка обновления статуса: ' + (e?.message || ''))
+                                        } finally {
+                                          setUpdatingItems(prev => {
+                                            const next = new Set(prev)
+                                            next.delete(item.id)
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                      style={{
+                                      padding: '6px 10px',
+                                      fontSize: '11px',
+                                        background: updatingItems.has(item.id) ? '#6b7280' : '#22c55e',
+                                        color: 'white',
+                                        border: 'none',
+                                      borderRadius: '6px',
+                                        cursor: updatingItems.has(item.id) ? 'not-allowed' : 'pointer',
+                                      fontWeight: '600',
+                                        transition: 'all 0.2s ease',
+                                        opacity: updatingItems.has(item.id) ? 0.7 : 1,
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                      minWidth: '60px',
+                                      whiteSpace: 'nowrap'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (!updatingItems.has(item.id)) {
+                                          e.target.style.background = '#16a34a'
+                                          e.target.style.transform = 'translateY(-1px)'
+                                          e.target.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)'
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!updatingItems.has(item.id)) {
+                                          e.target.style.background = '#22c55e'
+                                          e.target.style.transform = 'translateY(0)'
+                                          e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'
+                                        }
+                                      }}
+                                    >
+                                      {updatingItems.has(item.id) ? '...' : 'Подтвердить'}
+                                    </button>
+                                  </>
+                                )}
+
+                                {/* Статус "Выполнено" - только в столбце статуса, не в действиях */}
+                                {item.status === 'completed_ssk' && (
                                   <span style={{
-                                    background: '#d1fae5',
-                                    color: '#065f46',
-                                  padding: '8px 16px',
-                                  borderRadius: '8px',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                  minWidth: '80px',
-                                  display: 'inline-block',
-                                  textAlign: 'center'
+                                    color: 'var(--muted)',
+                                    fontSize: '13px',
+                                    fontStyle: 'italic'
                                   }}>
-                                    Выполнено
+                                    Нет действий
                                   </span>
                                 )}
                               </div>
