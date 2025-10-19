@@ -495,13 +495,19 @@ export async function generateAIResponse(prompt){
 }
 
 export async function askObjectQuestion(objectId, question){
-  const url = `${AI_BASE}/object_question`
+  const url = `${AI_BASE}/api/object_question`
   const ts = new Date().toISOString()
+  const tokens = getTokens()
+  const requestBody = { 
+    object_id: String(objectId), 
+    question: question,
+    token: tokens.access || ''
+  }
   try{ console.log(`[ai →]`, ts, 'POST', url, { object_id: objectId, question }) }catch{ console.log(`[ai →]`, ts, 'POST', url) }
   const res = await fetch(url, { 
     method: 'POST', 
     headers: { 'Content-Type': 'application/json' }, 
-    body: JSON.stringify({ object_id: objectId, question }) 
+    body: JSON.stringify(requestBody) 
   })
   if (!res.ok) throw new Error(`AI API error: ${res.status}`)
   const data = await res.json()

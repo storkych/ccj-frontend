@@ -30,7 +30,7 @@ export default function WorkPlanForm(){
   const [dataLoaded, setDataLoaded] = useState(false)
 
   const units = ['усл.', 'шт', 'м²', 'м³', 'м', 'кг', 'т', 'л']
-  
+
   const addRow = () => setRows(r => [...r, { id: Date.now(), name:'', quantity:0, unit:'усл.', start_date:'', end_date:'', sub_areas: [] }])
   const delRow = (idx) => setRows(r => r.filter((_,i)=>i!==idx))
   const update = (rowId, field, val) => setRows(r => r.map((row,i)=> row.id === rowId ? { ...row, [field]:val } : row))
@@ -141,7 +141,7 @@ export default function WorkPlanForm(){
           items: items, 
           title: title||undefined 
         })
-        setResult(resUuid)
+      setResult(resUuid)
       }
       
       // Перенаправляем обратно на страницу объекта
@@ -216,7 +216,7 @@ export default function WorkPlanForm(){
         </div>
 
         {/* Информация об объекте */}
-        {object && (
+      {object && (
           <div style={{
             background: 'var(--bg-light)',
             border: '1px solid var(--border)',

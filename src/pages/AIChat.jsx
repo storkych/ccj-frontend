@@ -11,7 +11,40 @@ export default function AIChat(){
   const [objects, setObjects] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadingObjects, setLoadingObjects] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(true)
   const messagesEndRef = useRef(null)
+
+  // Ключ для localStorage (уникальный для каждого пользователя)
+  const storageKey = `ai_chat_history_${user?.id || 'anonymous'}`
+
+  // Функции для работы с localStorage
+  const loadChatHistory = () => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Конвертируем timestamp обратно в Date объекты
+        const messagesWithDates = parsed.map(msg => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }))
+        return messagesWithDates
+      }
+    } catch (e) {
+      console.warn('[ai chat] error loading chat history:', e)
+    }
+    return []
+  }
+
+  const saveChatHistory = (messages) => {
+    try {
+      // Ограничиваем количество сообщений (последние 100)
+      const messagesToSave = messages.slice(-100)
+      localStorage.setItem(storageKey, JSON.stringify(messagesToSave))
+    } catch (e) {
+      console.warn('[ai chat] error saving chat history:', e)
+    }
+  }
 
   useEffect(() => {
     const loadObjects = async () => {
@@ -27,9 +60,27 @@ export default function AIChat(){
     loadObjects()
   }, [])
 
+  // Загружаем историю чата при монтировании компонента
+  useEffect(() => {
+    if (user?.id) {
+      const savedMessages = loadChatHistory()
+      setMessages(savedMessages)
+      setLoadingHistory(false)
+    } else {
+      setLoadingHistory(false)
+    }
+  }, [user?.id])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Сохраняем историю при изменении сообщений
+  useEffect(() => {
+    if (messages.length > 0 && user?.id) {
+      saveChatHistory(messages)
+    }
+  }, [messages, user?.id])
 
   const handleSendMessage = async (e) => {
     e.preventDefault()
@@ -60,14 +111,24 @@ export default function AIChat(){
       // Извлекаем текст из различных возможных полей ответа
       let responseText = response.reply || response.answer || response.message || response.text || response.result
       
-      // Если ответ содержит JSON с полем result, извлекаем его
-      if (typeof responseText === 'string' && responseText.includes('{"result":')) {
-        try {
-          const parsed = JSON.parse(responseText)
-          responseText = parsed.result || responseText
-        } catch (e) {
-          // Если не удалось распарсить, оставляем как есть
+      // Если responseText - это объект, извлекаем нужное поле
+      if (typeof responseText === 'object' && responseText !== null) {
+        // Если это объект с полем answer, извлекаем его
+        if (responseText.answer) {
+          responseText = responseText.answer
+        } else if (responseText.result) {
+          responseText = responseText.result
+        } else if (responseText.message) {
+          responseText = responseText.message
+        } else {
+          // Если не можем найти нужное поле, показываем весь объект как JSON
+          responseText = JSON.stringify(responseText, null, 2)
         }
+      }
+      
+      // Убеждаемся, что responseText - это строка
+      if (typeof responseText !== 'string') {
+        responseText = String(responseText || 'Извините, не удалось получить ответ')
       }
 
       const aiMessage = {
@@ -97,6 +158,12 @@ export default function AIChat(){
 
   const clearChat = () => {
     setMessages([])
+    // Очищаем localStorage
+    try {
+      localStorage.removeItem(storageKey)
+    } catch (e) {
+      console.warn('[ai chat] error clearing chat history:', e)
+    }
   }
 
   const getObjectName = (objectId) => {
@@ -226,9 +293,24 @@ export default function AIChat(){
             padding: '3px 8px',
             borderRadius: '4px',
             border: '1px solid var(--border)',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
           }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10,9 9,9 8,9"/>
+            </svg>
             {messages.length} сообщений
+            {messages.length > 0 && (
+              <span style={{color: 'var(--brand)', fontWeight: '500'}}>
+                (сохранено)
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -254,7 +336,39 @@ export default function AIChat(){
           flexDirection: 'column',
           gap: '16px'
         }}>
-          {messages.length === 0 ? (
+          {loadingHistory ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: 'var(--muted)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                background: 'var(--bg-secondary)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '20px',
+                border: '1px solid var(--border)',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <h3 style={{margin: '0 0 8px 0', color: 'var(--text)', fontSize: '16px', fontWeight: '600'}}>
+                Загружаем историю чата...
+              </h3>
+            </div>
+          ) : messages.length === 0 ? (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -354,10 +468,10 @@ export default function AIChat(){
                           blockquote: ({children}) => <blockquote style={{borderLeft: '3px solid var(--brand)', paddingLeft: '12px', margin: '0 0 12px 0', fontStyle: 'italic', color: 'var(--muted)'}}>{children}</blockquote>
                         }}
                       >
-                        {message.text}
+                        {typeof message.text === 'string' ? message.text : String(message.text || '')}
                       </ReactMarkdown>
                     ) : (
-                      <div style={{whiteSpace: 'pre-wrap'}}>{message.text}</div>
+                      <div style={{whiteSpace: 'pre-wrap'}}>{typeof message.text === 'string' ? message.text : String(message.text || '')}</div>
                     )}
                   </div>
                   <div style={{
