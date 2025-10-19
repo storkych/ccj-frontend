@@ -5,7 +5,6 @@ import { getObjects } from '../api/api.js'
 import DeliveryActionModal from '../components/DeliveryActionModal.jsx'
 
 export default function DeliveriesSSK() {
-  const [activeTab, setActiveTab] = useState('current')
   const [deliveries, setDeliveries] = useState([])
   const [objects, setObjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -16,7 +15,7 @@ export default function DeliveriesSSK() {
 
   useEffect(() => {
     loadData()
-  }, [activeTab, selectedObject])
+  }, [selectedObject])
 
   const loadData = async () => {
     try {
@@ -26,11 +25,8 @@ export default function DeliveriesSSK() {
       const objectsData = await getObjects()
       setObjects(objectsData.items || [])
       
-      // Загружаем поставки в зависимости от активной вкладки
+      // Загружаем все поставки
       const params = {}
-      if (activeTab === 'current') {
-        params.status = 'delivered,in_lab,accepted,rejected,sent_to_lab'
-      }
       if (selectedObject) {
         params.object_id = selectedObject
       }
@@ -143,45 +139,6 @@ export default function DeliveriesSSK() {
           </div>
         </div>
 
-        {/* Табы */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid var(--border)',
-          marginBottom: '20px'
-        }}>
-          <button
-            onClick={() => setActiveTab('current')}
-            style={{
-              padding: '12px 24px',
-              border: 'none',
-              background: 'transparent',
-              color: activeTab === 'current' ? 'var(--brand)' : 'var(--muted)',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'current' ? '2px solid var(--brand)' : '2px solid transparent',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            🔄 Актуальные поставки
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            style={{
-              padding: '12px 24px',
-              border: 'none',
-              background: 'transparent',
-              color: activeTab === 'history' ? 'var(--brand)' : 'var(--muted)',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'history' ? '2px solid var(--brand)' : '2px solid transparent',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            📚 История поставок
-          </button>
-        </div>
 
         {loading ? (
           <div style={{
@@ -207,13 +164,10 @@ export default function DeliveriesSSK() {
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
             <div style={{ fontSize: '18px', marginBottom: '8px' }}>
-              {activeTab === 'current' ? 'Нет актуальных поставок' : 'История поставок пуста'}
+              Нет поставок
             </div>
             <div style={{ fontSize: '14px' }}>
-              {activeTab === 'current' ? 
-                'Актуальные поставки появятся здесь когда будут доставлены' : 
-                'История поставок будет отображаться здесь'
-              }
+              Поставки появятся здесь когда будут доставлены
             </div>
           </div>
         ) : (
@@ -336,8 +290,8 @@ export default function DeliveriesSSK() {
                       </div>
                     </div>
 
-                    {/* Кнопки действий для актуальных поставок */}
-                    {activeTab === 'current' && (canSendToLab || canAccept || canReject) && (
+                    {/* Кнопки действий */}
+                    {(canSendToLab || canAccept || canReject) && (
                       <div style={{
                         display: 'flex',
                         gap: '8px',
