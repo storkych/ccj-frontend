@@ -5,6 +5,7 @@ import { getChangeRequests, makeChangeRequestDecision } from '../api/workPlans.j
 import AreaMap from './AreaMap.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
 import ViolationModal from '../components/ViolationModal.jsx'
+import FileSelectorModal from '../components/FileSelectorModal.jsx'
 import NotificationToast from '../components/NotificationToast.jsx'
 import { useNotification } from '../hooks/useNotification.js'
 
@@ -49,8 +50,9 @@ export default function ObjectDetail(){
     title: '',
     description: ''
   })
-  const [violationPhotos, setViolationPhotos] = useState([])
   const [violationSaving, setViolationSaving] = useState(false)
+  const [fileSelectorOpen, setFileSelectorOpen] = useState(false)
+  const [selectedStorageFiles, setSelectedStorageFiles] = useState([])
   const [visibleSubAreas, setVisibleSubAreas] = useState(new Set())
   const [violations, setViolations] = useState([])
   const [violationsLoading, setViolationsLoading] = useState(false)
@@ -1332,11 +1334,13 @@ export default function ObjectDetail(){
                               background: (item.status === 'pending' || item.status === 'planned') ? '#fef3c7' : 
                                          item.status === 'in_progress' ? '#dbeafe' : 
                                          item.status === 'completed_foreman' ? '#fef3c7' : 
-                                         item.status === 'completed_ssk' ? '#d1fae5' : 'var(--bg-secondary)',
+                                         item.status === 'completed_ssk' ? '#d1fae5' : 
+                                         item.status === 'done' ? '#d1fae5' : 'var(--bg-secondary)',
                               color: (item.status === 'pending' || item.status === 'planned') ? '#92400e' : 
                                     item.status === 'in_progress' ? '#1e40af' : 
                                     item.status === 'completed_foreman' ? '#92400e' : 
-                                    item.status === 'completed_ssk' ? '#065f46' : 'var(--muted)',
+                                    item.status === 'completed_ssk' ? '#065f46' : 
+                                    item.status === 'done' ? '#065f46' : 'var(--muted)',
                               padding: '4px 8px',
                               borderRadius: '6px',
                               fontSize: '12px',
@@ -1345,7 +1349,8 @@ export default function ObjectDetail(){
                               {(item.status === 'pending' || item.status === 'planned') ? 'Запланировано' : 
                                item.status === 'in_progress' ? 'В работе' : 
                                item.status === 'completed_foreman' ? 'На проверке' : 
-                               item.status === 'completed_ssk' ? 'Выполнено' : item.status}
+                               item.status === 'completed_ssk' ? 'Выполнено' : 
+                               item.status === 'done' ? 'Готово' : item.status}
                             </span>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-start' }}>
@@ -1614,7 +1619,7 @@ export default function ObjectDetail(){
                                 )}
 
                                 {/* Статус "Выполнено" - только в столбце статуса, не в действиях */}
-                                {item.status === 'completed_ssk' && (
+                                {(item.status === 'completed_ssk' || item.status === 'done') && (
                                   <span style={{
                                     color: 'var(--muted)',
                                     fontSize: '13px',
@@ -2177,25 +2182,25 @@ export default function ObjectDetail(){
             if(!violationData.title.trim()) return showError('Заголовок обязателен')
             setViolationSaving(true)
             try{
-              // Конвертируем фотографии в base64
-              const photoAttachments = []
-              if (violationPhotos.length > 0) {
-                for (const photo of violationPhotos) {
-                  const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader()
-                    reader.onload = () => resolve(reader.result)
-                    reader.onerror = reject
-                    reader.readAsDataURL(photo)
-                  })
-                  photoAttachments.push(base64)
-                }
+              // Подготавливаем фотографии из хранилища
+              const photoUrls = []
+              
+              // Добавляем файлы из хранилища (ссылки)
+              if (selectedStorageFiles.length > 0) {
+                selectedStorageFiles.forEach(file => {
+                  photoUrls.push(file.presigned_url || file.url)
+                })
               }
               
               // Создаем нарушение с фотографиями
               const payload = {
                 object: obj.id,
-                title: violationData.title,
-                violation_photos: photoAttachments
+                title: violationData.title
+              }
+              
+              // Добавляем фотографии из хранилища
+              if (photoUrls.length > 0) {
+                payload.violation_photos_urls = photoUrls
               }
               
               // Добавляем description только если он не пустой
@@ -2211,7 +2216,15 @@ export default function ObjectDetail(){
                 title: '',
                 description: ''
               })
-              setViolationPhotos([])
+              setSelectedStorageFiles([])
+              
+              // Обновляем список нарушений
+              try {
+                const violationsRes = await getViolations({ object_id: obj.id })
+                setViolations(violationsRes.items || [])
+              } catch (e) {
+                console.warn('[object detail] error reloading violations:', e)
+              }
             }catch(e){
               showError('Ошибка создания нарушения: ' + (e?.message || ''))
             }finally{
@@ -2243,51 +2256,78 @@ export default function ObjectDetail(){
 
 
 
+
             <div style={{marginBottom: 20}}>
               <label style={{display:'block', marginBottom: 8, fontWeight: 600}}>Фотографии нарушения</label>
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*"
-                onChange={e => {
-                  const files = Array.from(e.target.files)
-                  setViolationPhotos(prev => [...prev, ...files])
-                }}
-                style={{width:'100%', padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'6px', backgroundColor:'var(--bg)', marginBottom: 8}}
-              />
-              <div style={{fontSize: '12px', color: 'var(--muted)', marginBottom: 8}}>
-                Можно выбрать несколько фотографий. Поддерживаются форматы: JPG, PNG, GIF
+              
+              {/* Кнопка выбора файлов из хранилища */}
+              <div style={{marginBottom: '16px'}}>
+                <button
+                  type="button"
+                  onClick={() => setFileSelectorOpen(true)}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'var(--brand)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10,9 9,9 8,9"/>
+                  </svg>
+                  Выбрать из хранилища
+                </button>
               </div>
               
-              {violationPhotos.length > 0 && (
-                <div style={{display:'flex', flexDirection:'column', gap: 8}}>
-                  {violationPhotos.map((photo, index) => (
-                    <div key={index} className="row" style={{gap: 8, alignItems: 'center', padding: '8px 12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px'}}>
-                      <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: 8}}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                          <circle cx="8.5" cy="8.5" r="1.5"/>
-                          <polyline points="21,15 16,10 5,21"/>
-                        </svg>
-                        <span style={{fontSize: '14px'}}>{photo.name}</span>
-                        <span style={{fontSize: '12px', color: 'var(--muted)'}}>
-                          ({(photo.size / 1024 / 1024).toFixed(1)} MB)
-                        </span>
+              {/* Выбранные файлы из хранилища */}
+              {selectedStorageFiles.length > 0 && (
+                <div style={{marginBottom: '16px'}}>
+                  <h4 style={{fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: 'var(--text)'}}>
+                    Файлы из хранилища ({selectedStorageFiles.length})
+                  </h4>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    {selectedStorageFiles.map((file, index) => (
+                      <div key={index} className="row" style={{gap: 8, alignItems: 'center', padding: '8px 12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px'}}>
+                        <div style={{flex: 1, display: 'flex', alignItems: 'center', gap: 8}}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                          </svg>
+                          <span style={{fontSize: '14px'}}>{file.name}</span>
+                          <span style={{fontSize: '12px', color: 'var(--muted)'}}>
+                            (из хранилища)
+                          </span>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newFiles = selectedStorageFiles.filter((_, i) => i !== index)
+                            setSelectedStorageFiles(newFiles)
+                          }}
+                          style={{padding:'4px 8px', backgroundColor:'var(--red)', color:'white', border:'none', borderRadius:'4px', cursor:'pointer', fontSize: '12px'}}
+                        >
+                          Удалить
+                        </button>
                       </div>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const newPhotos = violationPhotos.filter((_, i) => i !== index)
-                          setViolationPhotos(newPhotos)
-                        }}
-                        style={{padding:'4px 8px', backgroundColor:'var(--red)', color:'white', border:'none', borderRadius:'4px', cursor:'pointer', fontSize: '12px'}}
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
+              
+              <div style={{fontSize: '12px', color: 'var(--muted)'}}>
+                Выберите файлы из хранилища. Поддерживаются форматы: JPG, PNG, GIF, WebP
+              </div>
             </div>
 
             <div className="row" style={{gap: 12, justifyContent:'flex-end'}}>
@@ -2727,7 +2767,8 @@ export default function ObjectDetail(){
                         {workItemDetails.status === 'planned' ? 'Запланировано' :
                          workItemDetails.status === 'in_progress' ? 'В работе' :
                          workItemDetails.status === 'completed_foreman' ? 'Завершено прорабом' :
-                         workItemDetails.status === 'completed_ssk' ? 'Выполнено' : workItemDetails.status}
+                         workItemDetails.status === 'completed_ssk' ? 'Выполнено' :
+                         workItemDetails.status === 'done' ? 'Готово' : workItemDetails.status}
                       </div>
                     </div>
                     {workItemDetails.document_url && (
@@ -2942,6 +2983,18 @@ export default function ObjectDetail(){
           </div>
         </div>
       )}
+
+      {/* Модальное окно выбора файлов из хранилища */}
+      <FileSelectorModal
+        open={fileSelectorOpen}
+        onClose={() => setFileSelectorOpen(false)}
+        onSelectFiles={(files) => {
+          setSelectedStorageFiles(files)
+          setFileSelectorOpen(false)
+        }}
+        allowedTypes={['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp']}
+        multiple={true}
+      />
 
     </div>
   )

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { submitViolationReport, confirmViolation, declineViolation } from '../api/api.js'
+import FileSelectorModal from './FileSelectorModal.jsx'
 
 function Modal({ open, onClose, children, style }){
   if(!open) return null
@@ -23,8 +24,8 @@ export default function ViolationModal({
 }) {
   const [reportText, setReportText] = useState('')
   const [reportFiles, setReportFiles] = useState([])
-  const [reportPhotos, setReportPhotos] = useState([])
-  const [uploadingPhotos, setUploadingPhotos] = useState(false)
+  const [selectedStorageFiles, setSelectedStorageFiles] = useState([])
+  const [fileSelectorOpen, setFileSelectorOpen] = useState(false)
   const [submittingReport, setSubmittingReport] = useState(false)
   const [reviewComment, setReviewComment] = useState('')
   const [reviewing, setReviewing] = useState(false)
@@ -36,27 +37,8 @@ export default function ViolationModal({
   const canReviewReport = (user?.role === 'ssk' || user?.role === 'iko') && (violation.status === 'fixed' || violation.status === 'awaiting_verification') && isAuthor
   const cannotReviewReason = (user?.role === 'ssk' || user?.role === 'iko') && (violation.status === 'fixed' || violation.status === 'awaiting_verification') && !isAuthor
 
-  const handlePhotoUpload = (event) => {
-    const files = Array.from(event.target.files)
-    if (files.length === 0) return
-
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          setReportPhotos(prev => [...prev, {
-            file: file,
-            preview: e.target.result,
-            name: file.name
-          }])
-        }
-        reader.readAsDataURL(file)
-      }
-    })
-  }
-
   const removePhoto = (index) => {
-    setReportPhotos(prev => prev.filter((_, i) => i !== index))
+    setSelectedStorageFiles(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleSubmitReport = async () => {
@@ -64,31 +46,21 @@ export default function ViolationModal({
     
     setSubmittingReport(true)
     try {
-       // Конвертируем фотографии в base64
-       const photoAttachments = await Promise.all(
-         reportPhotos.map(photo => {
-           return new Promise((resolve) => {
-             const reader = new FileReader()
-             reader.onload = (e) => {
-               resolve(e.target.result) // это уже base64 строка с data:image/...
-             }
-             reader.readAsDataURL(photo.file)
-           })
-         })
-       )
+       // Подготавливаем фотографии из хранилища
+       const photoUrls = selectedStorageFiles.map(file => file.presigned_url || file.url)
        
        const result = await submitViolationReport({
          id: violation.id,
          text: reportText,
          attachments: reportFiles, // обычные файлы
-         fix_photos: photoAttachments // фотографии отдельно в base64
+         fix_photos: photoUrls // фотографии из хранилища как ссылки
        })
       
       console.log('Отчёт успешно отправлен:', result)
       
       setReportText('')
       setReportFiles([])
-      setReportPhotos([])
+      setSelectedStorageFiles([])
       onClose()
       
       // Обновляем данные после закрытия модального окна
@@ -345,106 +317,77 @@ export default function ViolationModal({
                   📸 Фотографии исправления
                 </div>
                 
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handlePhotoUpload}
-                  style={{ display: 'none' }}
-                  id="photo-upload"
-                />
-                
-                <label
-                  htmlFor="photo-upload"
+                <button
+                  type="button"
+                  onClick={() => setFileSelectorOpen(true)}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '8px',
                     padding: '8px 16px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
+                    background: 'var(--brand)',
+                    color: 'white',
+                    border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer',
                     fontSize: '14px',
-                    color: 'var(--text)',
+                    fontWeight: '500',
                     transition: 'all 0.2s ease'
                   }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = 'var(--border)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = 'var(--bg-secondary)'
-                  }}
                 >
-                  📷 Добавить фото
-                </label>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10,9 9,9 8,9"/>
+                  </svg>
+                  Выбрать из хранилища
+                </button>
 
-                {/* Превью загруженных фотографий */}
-                {reportPhotos.length > 0 && (
+                {/* Превью выбранных фотографий */}
+                {selectedStorageFiles.length > 0 && (
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    display: 'flex',
+                    flexDirection: 'column',
                     gap: '8px',
                     marginTop: '12px'
                   }}>
-                    {reportPhotos.map((photo, index) => (
+                    {selectedStorageFiles.map((file, index) => (
                       <div
                         key={index}
                         style={{
-                          position: 'relative',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
                           background: 'var(--bg-secondary)',
+                          borderRadius: '6px',
                           border: '1px solid var(--border)'
                         }}
                       >
-                        <img
-                          src={photo.preview}
-                          alt={`Фото ${index + 1}`}
-                          style={{
-                            width: '100%',
-                            height: '80px',
-                            objectFit: 'cover',
-                            display: 'block'
-                          }}
-                        />
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                          <polyline points="14,2 14,8 20,8"/>
+                        </svg>
+                        <span style={{flex: 1, fontSize: '14px'}}>{file.name}</span>
+                        <span style={{fontSize: '12px', color: 'var(--muted)'}}>
+                          (из хранилища)
+                        </span>
                         <button
                           onClick={() => removePhoto(index)}
                           style={{
-                            position: 'absolute',
-                            top: '4px',
-                            right: '4px',
-                            background: 'rgba(0,0,0,0.7)',
+                            padding: '4px 8px',
+                            background: 'var(--red)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '50%',
-                            width: '20px',
-                            height: '20px',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            fontSize: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
+                            fontSize: '12px'
                           }}
                         >
-                          ✕
+                          Удалить
                         </button>
-                        <div style={{
-                          position: 'absolute',
-                          bottom: '2px',
-                          left: '2px',
-                          right: '2px',
-                          background: 'rgba(0,0,0,0.7)',
-                          color: 'white',
-                          fontSize: '10px',
-                          padding: '2px 4px',
-                          borderRadius: '2px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {photo.name}
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -471,7 +414,7 @@ export default function ViolationModal({
                     boxShadow: 'none'
                   }}
                 >
-                  {submittingReport ? 'Отправляем...' : `Отправить отчёт${reportPhotos.length > 0 ? ` (${reportPhotos.length} фото)` : ''}`}
+                  {submittingReport ? 'Отправляем...' : `Отправить отчёт${selectedStorageFiles.length > 0 ? ` (${selectedStorageFiles.length} фото)` : ''}`}
                 </button>
               </div>
             </div>
@@ -893,6 +836,18 @@ export default function ViolationModal({
           </div>
         </div>
       </div>
+      
+      {/* Модальное окно выбора файлов из хранилища */}
+      <FileSelectorModal
+        open={fileSelectorOpen}
+        onClose={() => setFileSelectorOpen(false)}
+        onSelectFiles={(files) => {
+          setSelectedStorageFiles(files)
+          setFileSelectorOpen(false)
+        }}
+        allowedTypes={['image/*']}
+        multiple={true}
+      />
     </Modal>
   )
 }

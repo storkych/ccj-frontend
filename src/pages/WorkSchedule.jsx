@@ -1112,7 +1112,7 @@ export default function WorkSchedule(){
                                 }}>
                                   {item.status === 'planned' ? 'Запланировано' : 
                                    item.status === 'in_progress' ? 'В работе' : 
-                                   item.status === 'done' ? 'Выполнено' : item.status}
+                                   item.status === 'done' ? 'Готово' : item.status}
                                 </span>
                               </td>
                               <td style={{

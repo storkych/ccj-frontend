@@ -378,13 +378,16 @@ export async function createViolation(payload){
 }
 
 export async function createViolationWithPhotos(payload) {
+  // API теперь поддерживает оба типа фотографий:
+  // - violation_photos_urls (массив ссылок)
+  // - violation_photos (массив base64) - для обратной совместимости
   return await http('/prescriptions', { method:'POST', body: JSON.stringify(payload) })
 }
 export async function submitViolationReport({ id, text, photos_folder_url, attachments, fix_photos }){
   const body = { 
     comment: text, 
     attachments: attachments || (photos_folder_url ? [photos_folder_url] : []),
-    fix_photos: fix_photos || []
+    fix_photos_urls: fix_photos || [] // Обновлено для нового API
   }
   return await http(`/prescriptions/${id}/fix`, { method:'POST', body: JSON.stringify(body) })
 }
