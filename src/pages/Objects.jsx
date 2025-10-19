@@ -153,7 +153,7 @@ function ObjectCard({ obj }){
                   fontWeight:'500',
                   border:'1px solid var(--border)'
                 }}>
-                  📦 Поставки сегодня: {obj.deliveries_today}
+                  Поставки сегодня: {obj.deliveries_today}
                 </span>
               )}
               {obj.visits && (

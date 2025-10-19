@@ -449,7 +449,7 @@ export default function Violations(){
                     </div>
                     
                     <div style={{color: 'var(--muted)', marginBottom: 12, fontSize: '14px'}}>
-                      📍 {getObjectName(v.object)}
+                      {getObjectName(v.object)}
                     </div>
                     
                     {v.description && (
@@ -460,7 +460,7 @@ export default function Violations(){
                   </div>
                   
                   <div className="row" style={{gap: 16, fontSize: '12px', color: 'var(--muted)', paddingTop: '12px', borderTop: '1px solid var(--border)'}}>
-                    <span>📅 Создано: {new Date(v.created_at).toLocaleDateString('ru-RU')}</span>
+                    <span>Создано: {new Date(v.created_at).toLocaleDateString('ru-RU')}</span>
                     {v.requires_stop && (
                       <span style={{color: '#ef4444', fontWeight: '500'}}>
                         ⚠️ Требует остановки работ

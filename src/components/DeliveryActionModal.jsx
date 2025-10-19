@@ -21,7 +21,7 @@ export default function DeliveryActionModal({
           description: 'Подтвердите принятие поставки ССК',
           buttonText: 'Принять',
           buttonColor: '#10b981',
-          icon: '✅'
+          icon: ''
         }
       case 'reject':
         return {
@@ -29,7 +29,7 @@ export default function DeliveryActionModal({
           description: 'Укажите причину отклонения поставки',
           buttonText: 'Отклонить',
           buttonColor: '#ef4444',
-          icon: '❌'
+          icon: ''
         }
       case 'send_to_lab':
         return {
@@ -37,7 +37,7 @@ export default function DeliveryActionModal({
           description: 'Отправить поставку на лабораторные испытания',
           buttonText: 'Отправить в лабораторию',
           buttonColor: '#8b5cf6',
-          icon: '🧪'
+          icon: ''
         }
       default:
         return {
@@ -45,7 +45,7 @@ export default function DeliveryActionModal({
           description: 'Выполните действие с поставкой',
           buttonText: 'Выполнить',
           buttonColor: 'var(--brand)',
-          icon: '⚡'
+          icon: ''
         }
     }
   }
@@ -174,7 +174,7 @@ export default function DeliveryActionModal({
               color: 'var(--muted)'
             }}>
               {delivery.supplier && <span>🏢 {delivery.supplier}</span>}
-              {delivery.items_count && <span>📦 Позиций: {delivery.items_count}</span>}
+              {delivery.items_count && <span>Позиций: {delivery.items_count}</span>}
             </div>
           </div>
 

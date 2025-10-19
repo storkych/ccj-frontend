@@ -1,17 +1,22 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { getVisits, createVisit, getObjects } from '../api/api.js'
+import { getVisits, createVisit, getObjects, getSubPolygons } from '../api/api.js'
+import NotificationToast from '../components/NotificationToast.jsx'
+import { useNotification } from '../hooks/useNotification.js'
 
 export default function Visits(){
   const { user } = useAuth()
+  const { notification, showSuccess, showError, hide } = useNotification()
   const [objectId, setObjectId] = useState('')
   const [items, setItems] = useState([])
   const [objects, setObjects] = useState([])
+  const [subPolygons, setSubPolygons] = useState([])
   const [loading, setLoading] = useState(true)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [visitData, setVisitData] = useState({
     object_id: '',
+    sub_polygon_id: '',
     visit_date: new Date().toISOString().split('T')[0]
   })
   const [saving, setSaving] = useState(false)
@@ -37,25 +42,52 @@ export default function Visits(){
     if (user) loadData()
   }, [user, objectId])
 
+  // Загружаем подполигоны при выборе объекта
+  const loadSubPolygons = async (objectId) => {
+    if (!objectId) {
+      setSubPolygons([])
+      return
+    }
+    try {
+      const res = await getSubPolygons(objectId)
+      setSubPolygons(res.sub_polygons || [])
+    } catch (e) {
+      console.warn('[ui visits] error loading sub-polygons', e)
+      setSubPolygons([])
+    }
+  }
+
   const handleCreateVisit = async (e) => {
     e.preventDefault()
-    if (!visitData.object_id || !visitData.visit_date) return alert('Заполните все поля')
+    if (!visitData.object_id || !visitData.sub_polygon_id || !visitData.visit_date) {
+      return showError('Заполните все поля')
+    }
     setSaving(true)
     try {
+      // Находим выбранный подполигон для получения его имени
+      const selectedPolygon = subPolygons.find(p => p.id === Number(visitData.sub_polygon_id))
+      
       await createVisit({
         user_id: user.id,
         user_role: user.role,
         object_id: Number(visitData.object_id),
+        area_id: Number(visitData.sub_polygon_id),
+        area_name: selectedPolygon?.name || '',
         visit_date: visitData.visit_date
       })
-      alert('Посещение создано')
+      showSuccess('Посещение создано')
       setCreateModalOpen(false)
-      setVisitData({ object_id: '', visit_date: new Date().toISOString().split('T')[0] })
+      setVisitData({ 
+        object_id: '', 
+        sub_polygon_id: '',
+        visit_date: new Date().toISOString().split('T')[0] 
+      })
+      setSubPolygons([])
       // Перезагружаем данные
       const visitsRes = await getVisits({ user_id: user.id, object_id: objectId||undefined })
       setItems(visitsRes.sessions || [])
     } catch (e) {
-      alert('Ошибка создания посещения: ' + (e?.message || ''))
+      showError('Ошибка создания посещения: ' + (e?.message || ''))
     } finally {
       setSaving(false)
     }
@@ -214,7 +246,7 @@ export default function Visits(){
                     </div>
                     <div className="row" style={{gap: 16, alignItems: 'center', marginBottom: 8}}>
                       <div style={{color: 'var(--muted)', fontSize: '14px'}}>
-                        📅 {new Date(v.visit_date).toLocaleDateString('ru-RU', {
+                        {new Date(v.visit_date).toLocaleDateString('ru-RU', {
                           weekday: 'long',
                           year: 'numeric',
                           month: 'long',
@@ -291,7 +323,7 @@ export default function Visits(){
           })}
           {items.length === 0 && (
             <div className="card" style={{padding: 40, textAlign: 'center'}}>
-              <div style={{fontSize: '48px', marginBottom: 16}}>📅</div>
+              <div style={{fontSize: '48px', marginBottom: 16}}>📋</div>
               <div style={{fontSize: '18px', fontWeight: '600', marginBottom: 8}}>Нет посещений</div>
               <div style={{color: 'var(--muted)'}}>
                 {user?.role === 'foreman' ? 
@@ -320,7 +352,11 @@ export default function Visits(){
                   <select 
                     className="input" 
                     value={visitData.object_id} 
-                    onChange={e => setVisitData(prev => ({...prev, object_id: e.target.value}))}
+                    onChange={e => {
+                      const newObjectId = e.target.value
+                      setVisitData(prev => ({...prev, object_id: newObjectId, sub_polygon_id: ''}))
+                      loadSubPolygons(newObjectId)
+                    }}
                     required
                     style={{width: '100%', padding: '8px 12px'}}
                   >
@@ -332,6 +368,31 @@ export default function Visits(){
                     ))}
                   </select>
                 </div>
+
+                <div style={{marginBottom: 12}}>
+                  <label style={{display: 'block', marginBottom: 4, fontWeight: 600, fontSize: '14px'}}>Подполигон *</label>
+                  <select 
+                    className="input" 
+                    value={visitData.sub_polygon_id} 
+                    onChange={e => setVisitData(prev => ({...prev, sub_polygon_id: e.target.value}))}
+                    required
+                    disabled={!visitData.object_id || subPolygons.length === 0}
+                    style={{width: '100%', padding: '8px 12px'}}
+                  >
+                    <option value="">Выберите подполигон</option>
+                    {subPolygons.map(polygon => (
+                      <option key={polygon.id} value={polygon.id}>
+                        {polygon.name}
+                      </option>
+                    ))}
+                  </select>
+                  {visitData.object_id && subPolygons.length === 0 && (
+                    <div style={{fontSize: '12px', color: 'var(--muted)', marginTop: '4px'}}>
+                      Подполигоны не найдены для выбранного объекта
+                    </div>
+                  )}
+                </div>
+
 
                 <div style={{marginBottom: 16}}>
                   <label style={{display: 'block', marginBottom: 4, fontWeight: 600, fontSize: '14px'}}>Дата посещения *</label>
@@ -349,7 +410,7 @@ export default function Visits(){
                   <button type="button" onClick={() => setCreateModalOpen(false)} className="btn ghost">
                     Отмена
                   </button>
-                  <button type="submit" className="btn" disabled={saving || !visitData.object_id || !visitData.visit_date}>
+                  <button type="submit" className="btn" disabled={saving || !visitData.object_id || !visitData.sub_polygon_id || !visitData.visit_date}>
                     {saving ? 'Создаём...' : 'Создать'}
                   </button>
                 </div>
@@ -357,6 +418,15 @@ export default function Visits(){
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast уведомления */}
+      {notification && (
+        <NotificationToast
+          type={notification.type}
+          message={notification.message}
+          onClose={hide}
+        />
       )}
     </div>
   )

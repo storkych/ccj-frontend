@@ -1284,11 +1284,11 @@ export default function ObjectDetail(){
                         background: idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)',
                         transition: 'background-color 0.2s ease',
                         cursor: 'pointer'
-                      }}
-                      onMouseEnter={(e) => {
+                        }}
+                        onMouseEnter={(e) => {
                         e.target.style.background = 'var(--bg-secondary)'
-                      }}
-                      onMouseLeave={(e) => {
+                        }}
+                        onMouseLeave={(e) => {
                       e.target.style.background = idx % 2 === 0 ? 'var(--panel)' : 'rgba(0, 0, 0, 0.15)'
                     }}>
                       <div style={{

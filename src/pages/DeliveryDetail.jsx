@@ -248,7 +248,7 @@ export default function DeliveryDetail() {
                   fontWeight: '600',
                   border: '1px solid var(--brand)30'
                 }}>
-                  📍 {currentObject.name}
+                  {currentObject.name}
                 </div>
               )}
             </div>
@@ -308,7 +308,7 @@ export default function DeliveryDetail() {
                   }
                 }}
               >
-                📦 Принять доставку
+                Принять поставку
               </button>
             </div>
           )}
@@ -348,7 +348,7 @@ export default function DeliveryDetail() {
                     }
                   }}
                 >
-                  🧪 В лабораторию
+                  В лабораторию
                 </button>
               )}
               
@@ -381,7 +381,7 @@ export default function DeliveryDetail() {
                     }
                   }}
                 >
-                  ✅ Принять
+                  Принять
                 </button>
               )}
 
@@ -414,7 +414,7 @@ export default function DeliveryDetail() {
                     }
                   }}
                 >
-                  ❌ Отклонить
+                  Отклонить
                 </button>
               )}
             </div>
@@ -437,7 +437,7 @@ export default function DeliveryDetail() {
                 Ожидаемая дата
               </div>
               <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: '500' }}>
-                📅 {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}
+                {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}
               </div>
             </div>
           )}
@@ -459,7 +459,7 @@ export default function DeliveryDetail() {
                 Количество позиций
               </div>
               <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: '500' }}>
-                📦 {delivery.items_count}
+                Позиций: {delivery.items_count}
               </div>
             </div>
           )}
@@ -470,7 +470,7 @@ export default function DeliveryDetail() {
                 Объект
               </div>
               <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: '500' }}>
-                🏗️ {currentObject.name}
+                {currentObject.name}
               </div>
             </div>
           )}
@@ -481,7 +481,7 @@ export default function DeliveryDetail() {
                 Создано
               </div>
               <div style={{ fontSize: '14px', color: 'var(--text)', fontWeight: '500' }}>
-                📅 {new Date(delivery.created_at).toLocaleDateString('ru-RU', {
+                {new Date(delivery.created_at).toLocaleDateString('ru-RU', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',

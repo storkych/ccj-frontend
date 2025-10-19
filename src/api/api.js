@@ -203,11 +203,47 @@ async function visitsHttp(path, { method='GET', headers={}, body, retry=true } =
   return out
 }
 
-export async function createVisit(data){ return await visitsHttp('/api/v1/sessions/create', { method:'POST', body: JSON.stringify(data) }) }
+export async function createVisit(data){ 
+  return await visitsHttp('/api/v1/sessions/create', { method:'POST', body: JSON.stringify(data) }) 
+}
 export async function getVisits(params = {}){ 
   const qs = new URLSearchParams()
   for (const [k,v] of Object.entries(params)) if (v!=null && v!=='') qs.set(k, v)
   return await visitsHttp(`/api/v1/sessions/list?${qs.toString()}`) 
+}
+export async function getSubPolygons(objectId){ 
+  // Получаем все планы работ объекта и извлекаем подполигоны
+  const workPlans = await getWorkPlans({ object_id: objectId })
+  const allSubPolygons = []
+  
+  if (workPlans.items && workPlans.items.length > 0) {
+    for (const plan of workPlans.items) {
+      try {
+        const planDetails = await getWorkPlan(plan.id)
+        if (planDetails.work_items) {
+          planDetails.work_items.forEach(item => {
+            if (item.sub_areas) {
+              item.sub_areas.forEach(subArea => {
+                // Проверяем, что подполигон еще не добавлен
+                if (!allSubPolygons.find(sp => sp.id === subArea.id)) {
+                  allSubPolygons.push({
+                    id: subArea.id,
+                    name: subArea.name,
+                    geometry: subArea.geometry,
+                    color: subArea.color
+                  })
+                }
+              })
+            }
+          })
+        }
+      } catch (e) {
+        console.warn(`[api] error loading plan ${plan.id}:`, e)
+      }
+    }
+  }
+  
+  return { sub_polygons: allSubPolygons }
 }
 export async function getPlannedVisits(objectId){ return await visitsHttp(`/api/v1/sessions/planned/${objectId}`) }
 

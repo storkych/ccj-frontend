@@ -250,7 +250,7 @@ export default function Deliveries() {
             padding: '40px',
             color: 'var(--muted)'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
             <div style={{ fontSize: '18px', marginBottom: '8px' }}>
               {showTodayOnly ? 'Нет поставок на сегодня' : 'Поставки не найдены'}
             </div>

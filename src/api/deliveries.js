@@ -139,6 +139,71 @@ export async function extractTextFromImage(imageBase64, objectId = null, deliver
   }
 }
 
+// Новая функция для обработки нескольких фотографий
+export async function extractTextFromMultipleImages(photos, objectId, deliveryId) {
+  const url = `${CV_BASE}/api/extract`
+  const tokens = getTokens()
+  const headers = { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${tokens.access}`
+  }
+  
+  // Конвертируем все фотографии в base64
+  const materials = await Promise.all(
+    photos.map(async (photo, index) => {
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          // Убираем префикс data:image/...;base64, оставляем только base64 строку
+          const base64String = e.target.result.split(',')[1]
+          resolve(base64String)
+        }
+        reader.readAsDataURL(photo.file)
+      })
+      return {
+        number: index + 1,
+        photo: base64
+      }
+    })
+  )
+  
+  const body = JSON.stringify({
+    images_base64: materials.map(m => m.photo),
+    object_id: String(objectId),
+    delivery_id: String(deliveryId),
+    date: new Date().toISOString().split('T')[0]
+  })
+
+  const ts = new Date().toISOString()
+  console.log(`[cv-api →]`, ts, 'POST', url, 'Multiple images processing...', {
+    object_id: String(objectId),
+    delivery_id: String(deliveryId),
+    date: new Date().toISOString().split('T')[0],
+    images_count: materials.length
+  })
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[cv-api ←]`, ts, 'POST', url, response.status, errorText)
+      throw new Error(`CV API error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log(`[cv-api ←]`, ts, 'POST', url, response.status, data)
+    return data
+  } catch (error) {
+    console.error(`[cv-api ←]`, ts, 'POST', url, 'Error:', error.message)
+    throw error
+  }
+}
+
 export async function confirmDeliveryMaterials(id, materialsData) {
   return await http(`/deliveries/${id}`, { 
     method: 'POST', 

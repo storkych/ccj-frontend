@@ -205,7 +205,7 @@ export default function DeliveriesSSK() {
             padding: '40px',
             color: 'var(--muted)'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
             <div style={{ fontSize: '18px', marginBottom: '8px' }}>
               {activeTab === 'current' ? 'Нет актуальных поставок' : 'История поставок пуста'}
             </div>
@@ -274,7 +274,7 @@ export default function DeliveriesSSK() {
                             fontWeight: '600',
                             border: '1px solid var(--brand)30'
                           }}>
-                            📍 {delivery.object.name}
+                            {delivery.object.name}
                           </div>
                         )}
                       </div>
@@ -325,13 +325,13 @@ export default function DeliveriesSSK() {
                         alignItems: 'center'
                       }}>
                         {delivery.expected_date && (
-                          <span>📅 Ожидается: {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}</span>
+                          <span>Ожидается: {new Date(delivery.expected_date).toLocaleDateString('ru-RU')}</span>
                         )}
                         {delivery.supplier && (
                           <span>🏢 {delivery.supplier}</span>
                         )}
                         {delivery.items_count && (
-                          <span>📦 Позиций: {delivery.items_count}</span>
+                          <span>Позиций: {delivery.items_count}</span>
                         )}
                       </div>
                     </div>
@@ -368,7 +368,7 @@ export default function DeliveriesSSK() {
                               e.target.style.transform = 'translateY(0)'
                             }}
                           >
-                            🧪 В лабораторию
+                            В лабораторию
                           </button>
                         )}
                         
@@ -396,7 +396,7 @@ export default function DeliveriesSSK() {
                               e.target.style.transform = 'translateY(0)'
                             }}
                           >
-                            ✅ Принять
+                            Принять
                           </button>
                         )}
 
@@ -424,7 +424,7 @@ export default function DeliveriesSSK() {
                               e.target.style.transform = 'translateY(0)'
                             }}
                           >
-                            ❌ Отклонить
+                            Отклонить
                           </button>
                         )}
                       </div>
