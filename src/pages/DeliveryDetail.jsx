@@ -4,11 +4,14 @@ import { getDelivery, sendDeliveryToLab, acceptDelivery, rejectDelivery } from '
 import { getObjects } from '../api/api.js'
 import { useAuth } from '../auth/AuthContext'
 import ReceiveDeliveryModal from '../components/ReceiveDeliveryModal.jsx'
+import { useNotification } from '../hooks/useNotification.js'
+import NotificationToast from '../components/NotificationToast.jsx'
 
 export default function DeliveryDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { showSuccess, showError } = useNotification()
   const [delivery, setDelivery] = useState(null)
   const [objects, setObjects] = useState([])
   const [currentObject, setCurrentObject] = useState(null)
@@ -47,7 +50,7 @@ export default function DeliveryDetail() {
       }
     } catch (error) {
       console.error('Ошибка загрузки поставки:', error)
-      alert('Ошибка загрузки поставки')
+      showError('Ошибка загрузки поставки')
     } finally {
       setLoading(false)
     }
@@ -89,11 +92,11 @@ export default function DeliveryDetail() {
     try {
       setActionLoading(true)
       await acceptDelivery({ id, comment: 'Поставка принята ССК' })
-      alert('Поставка принята')
+      showSuccess('Поставка принята')
       loadDelivery()
     } catch (error) {
       console.error('Ошибка принятия поставки:', error)
-      alert('Ошибка при принятии поставки')
+      showError('Ошибка при принятии поставки')
     } finally {
       setActionLoading(false)
     }
@@ -106,11 +109,11 @@ export default function DeliveryDetail() {
     try {
       setActionLoading(true)
       await rejectDelivery({ id, comment: comment.trim() })
-      alert('Поставка отклонена')
+      showSuccess('Поставка отклонена')
       loadDelivery()
     } catch (error) {
       console.error('Ошибка отклонения поставки:', error)
-      alert('Ошибка при отклонении поставки')
+      showError('Ошибка при отклонении поставки')
     } finally {
       setActionLoading(false)
     }
@@ -593,6 +596,9 @@ export default function DeliveryDetail() {
         delivery={delivery}
         onSuccess={handleReceiveSuccess}
       />
+      
+      {/* Уведомления */}
+      <NotificationToast />
     </div>
   )
 }

@@ -247,7 +247,6 @@ export async function getSubPolygons(objectId){
 }
 export async function getPlannedVisits(objectId){ return await visitsHttp(`/api/v1/sessions/planned/${objectId}`) }
 
-export async function getMemos(){ return await http('/memos') }
 
 export async function getFileTree({ object_id } = {}){
   const qs = new URLSearchParams()
@@ -576,4 +575,21 @@ export async function getWorkItemDetails(id) {
   })
   console.log(`[api ←]`, ts, 'GET', `/work-items/${id}`, res.status, res)
   return res
+}
+
+// Получение методичек
+export async function getMemos() {
+  const ts = new Date().toISOString()
+  const headers = { 'Content-Type': 'application/json' }
+  const tokens = getTokens()
+  if (tokens.access) headers['Authorization'] = `Bearer ${tokens.access}`
+  
+  try{ console.log(`[api →]`, ts, 'GET', `https://building-admin.itc-hub.ru/api/memos/all/`) }catch{ console.log(`[api →]`, ts, 'GET', `https://building-admin.itc-hub.ru/api/memos/all/`) }
+  const res = await fetch(`https://building-admin.itc-hub.ru/api/memos/all/`, {
+    method: 'GET',
+    headers
+  })
+  const data = await res.json()
+  console.log(`[api ←]`, ts, 'GET', `https://building-admin.itc-hub.ru/api/memos/all/`, res.status, data)
+  return data
 }

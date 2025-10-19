@@ -942,6 +942,7 @@ export default function ObjectDetail(){
         </div>
       </div>
 
+
       {(obj.areas && obj.areas.length > 0) && (
         <div style={{
           background: 'var(--panel)',
@@ -2054,7 +2055,154 @@ export default function ObjectDetail(){
         )}
       </div>
 
-
+      {/* История посещений */}
+      {obj.visit_history && obj.visit_history.length > 0 && (
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{
+            margin: '0 0 20px 0',
+            fontSize: '20px',
+            fontWeight: '600',
+            color: 'var(--text)'
+          }}>
+            История посещений
+          </h3>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            {obj.visit_history.map((visit, index) => (
+              <div key={visit.id || index} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '16px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                transition: 'all 0.2s ease'
+              }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, var(--brand), #ffb454)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                  color: '#111',
+                  fontWeight: '700',
+                  boxShadow: '0 4px 12px rgba(255,138,0,.3)',
+                  flexShrink: 0
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                </div>
+                
+                <div style={{flex: 1}}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    marginBottom: '4px'
+                  }}>
+                    <span style={{
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      color: 'var(--text)'
+                    }}>
+                      Посещение #{visit.id}
+                    </span>
+                    <span style={{
+                      padding: '4px 8px',
+                      background: 'var(--chip)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: 'var(--muted)',
+                      fontWeight: '500'
+                    }}>
+                      {new Date(visit.date).toLocaleDateString('ru-RU', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                  
+                  <div style={{
+                    display: 'flex',
+                    gap: '16px',
+                    fontSize: '14px',
+                    color: 'var(--muted)'
+                  }}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                      </svg>
+                      {new Date(visit.date).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                    
+                    {visit.latitude && visit.longitude && (
+                      <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                          <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        {visit.latitude}, {visit.longitude}
+                      </div>
+                    )}
+                    
+                    {visit.sub_polygon_id && (
+                      <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                          <polyline points="9,22 9,12 15,12 15,22"/>
+                        </svg>
+                        Участок #{visit.sub_polygon_id}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexShrink: 0
+                }}>
+                  <div style={{
+                    padding: '6px 12px',
+                    background: 'var(--brand)',
+                    color: '#111',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '600'
+                  }}>
+                    ID: {visit.user_id?.slice(-8) || 'N/A'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Modal open={areaModalOpen} onClose={()=>setAreaModalOpen(false)} style={{ width:'95vw', maxWidth:'95vw' }}>
         <div style={{ width:'100%' }}> 

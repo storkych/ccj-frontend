@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { acceptDelivery, rejectDelivery, sendDeliveryToLab } from '../api/deliveries.js'
+import { useNotification } from '../hooks/useNotification.js'
+import NotificationToast from './NotificationToast.jsx'
 
 export default function DeliveryActionModal({ 
   delivery, 
@@ -10,6 +12,7 @@ export default function DeliveryActionModal({
 }) {
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(false)
+  const { showSuccess, showError } = useNotification()
 
   if (!isOpen || !delivery || !action) return null
 
@@ -18,7 +21,7 @@ export default function DeliveryActionModal({
       case 'accept':
         return {
           title: 'Принять поставку',
-          description: 'Подтвердите принятие поставки ССК',
+          description: 'Подтвердите принятие поставки ССК (комментарий не обязателен)',
           buttonText: 'Принять',
           buttonColor: '#10b981',
           icon: ''
@@ -51,8 +54,9 @@ export default function DeliveryActionModal({
   }
 
   const handleAction = async () => {
-    if (!comment.trim()) {
-      alert('Пожалуйста, добавьте комментарий')
+    // Для принятия поставки ССК комментарий не обязателен
+    if (action !== 'accept' && !comment.trim()) {
+      showError('Пожалуйста, добавьте комментарий')
       return
     }
 
@@ -62,13 +66,19 @@ export default function DeliveryActionModal({
       let result
       switch (action) {
         case 'accept':
-          result = await acceptDelivery({ id: delivery.id, comment: comment.trim() })
+          result = await acceptDelivery({ 
+            id: delivery.id, 
+            comment: comment.trim() || 'Поставка принята ССК' 
+          })
+          showSuccess('Поставка успешно принята')
           break
         case 'reject':
           result = await rejectDelivery({ id: delivery.id, comment: comment.trim() })
+          showSuccess('Поставка отклонена')
           break
         case 'send_to_lab':
           result = await sendDeliveryToLab({ id: delivery.id, comment: comment.trim() })
+          showSuccess('Поставка отправлена в лабораторию')
           break
         default:
           throw new Error('Неизвестное действие')
@@ -79,7 +89,7 @@ export default function DeliveryActionModal({
       setComment('')
     } catch (error) {
       console.error('Ошибка при выполнении действия:', error)
-      alert('Ошибка при выполнении действия')
+      showError('Ошибка при выполнении действия: ' + (error?.message || ''))
     } finally {
       setLoading(false)
     }
@@ -251,6 +261,9 @@ export default function DeliveryActionModal({
           </div>
         </div>
       </div>
+      
+      {/* Уведомления */}
+      <NotificationToast />
     </div>
   )
 }

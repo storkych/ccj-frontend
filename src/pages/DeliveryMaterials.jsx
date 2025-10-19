@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getDelivery, confirmDeliveryMaterials } from '../api/deliveries.js'
 import { useAuth } from '../auth/AuthContext'
+import { useNotification } from '../hooks/useNotification.js'
+import NotificationToast from '../components/NotificationToast.jsx'
 
 export default function DeliveryMaterials() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { showSuccess, showError } = useNotification()
   const [delivery, setDelivery] = useState(null)
   const [materials, setMaterials] = useState([])
   const [loading, setLoading] = useState(true)
@@ -45,7 +48,7 @@ export default function DeliveryMaterials() {
       setDelivery(data)
     } catch (error) {
       console.error('Ошибка загрузки поставки:', error)
-      alert('Ошибка загрузки поставки')
+      showError('Ошибка загрузки поставки')
     } finally {
       setLoading(false)
     }
@@ -61,7 +64,7 @@ export default function DeliveryMaterials() {
 
   const handleConfirm = async () => {
     if (materials.length === 0) {
-      alert('Нет материалов для подтверждения')
+      showError('Нет материалов для подтверждения')
       return
     }
 
@@ -85,11 +88,11 @@ export default function DeliveryMaterials() {
       // Очищаем временные данные
       sessionStorage.removeItem(`delivery_materials_${id}`)
       
-      alert('Материалы успешно подтверждены!')
+      showSuccess('Материалы успешно подтверждены!')
       navigate(`/deliveries/${id}`)
     } catch (error) {
       console.error('Ошибка подтверждения материалов:', error)
-      alert('Ошибка при подтверждении материалов')
+      showError('Ошибка при подтверждении материалов')
     } finally {
       setSubmitting(false)
     }
@@ -476,6 +479,9 @@ export default function DeliveryMaterials() {
           ))}
         </div>
       )}
+      
+      {/* Уведомления */}
+      <NotificationToast />
     </div>
   )
 }
